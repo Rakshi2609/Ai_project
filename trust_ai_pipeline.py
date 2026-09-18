@@ -109,3 +109,50 @@ class RobotTelemetryExtractor:
         }
 
 
+class FacialBlendshapeExtractor:
+    """
+    Extracts operator facial blendshapes and affective strain cues:
+    - Brow furrow (AU04 - Corrugator supercilii: confusion/frustration)
+    - Anger / fear blendshapes (AU01, AU02, AU05 - Brow raise / eye widen)
+    - Jaw clench & mouth tension (AU15 / AU24)
+    - Gaze deviation variance away from robot workspace
+    - Facial entropy (emotional volatility)
+    """
+    def extract(
+        self,
+        brow_furrow: float = 0.12,
+        fear_expression: float = 0.08,
+        anger_expression: float = 0.05,
+        eye_widen: float = 0.10,
+        jaw_clench: float = 0.06,
+        facial_entropy: float = 0.18,
+        gaze_drift_variance: float = 0.04,
+        dominant_emotion: str = "Neutral"
+    ) -> Dict[str, Any]:
+        # Aggregate psychological stress indicators
+        stress_index = (
+            brow_furrow * 0.30 +
+            fear_expression * 0.35 +
+            anger_expression * 0.20 +
+            jaw_clench * 0.15
+        )
+        stress_index = min(1.0, max(0.0, stress_index))
+
+        # Facial calm / trust indicator
+        facial_calm_score = 1.0 - (stress_index * 0.65 + min(1.0, facial_entropy) * 0.20 + min(1.0, gaze_drift_variance * 3.0) * 0.15)
+        facial_calm_score = max(0.0, min(1.0, facial_calm_score))
+
+        return {
+            "brow_furrow": round(float(brow_furrow), 3),
+            "fear_expression": round(float(fear_expression), 3),
+            "anger_expression": round(float(anger_expression), 3),
+            "eye_widen": round(float(eye_widen), 3),
+            "jaw_clench": round(float(jaw_clench), 3),
+            "facial_entropy": round(float(facial_entropy), 3),
+            "gaze_drift_variance": round(float(gaze_drift_variance), 3),
+            "stress_index": round(stress_index, 4),
+            "dominant_emotion": dominant_emotion,
+            "facial_calm_score": round(facial_calm_score, 4)
+        }
+
+
