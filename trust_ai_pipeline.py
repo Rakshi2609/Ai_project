@@ -252,3 +252,65 @@ class PhysiologicalBvpExtractor:
 # MODULE 2: TEMPORAL FEATURE ENCODER
 # =====================================================================
 
+class TemporalFeatureEncoder:
+    """
+    Module 2: Temporal Feature Encoder
+    Encodes timeseries features over sliding windows (2s, 5s, 10s intervals; default 5s).
+    Models asymmetric trust dynamics:
+    - Rapid decay when robot errs (fast trust collapse)
+    - Slow, gradual accumulation through repeated safe collaboration cycles
+    """
+    def __init__(self, default_window_seconds: float = 5.0):
+        self.window_seconds = default_window_seconds
+        self.history: List[Dict[str, float]] = []
+
+    def set_window_size(self, seconds: float):
+        self.window_seconds = max(2.0, min(10.0, seconds))
+
+    def update_history(self, timestamp: float, scores: Dict[str, float]):
+        self.history.append({"t": timestamp, **scores})
+        # Keep only records within max history buffer (20 seconds)
+        cutoff = timestamp - 20.0
+        self.history = [h for h in self.history if h["t"] >= cutoff]
+
+    def encode(
+        self,
+        current_scores: Dict[str, float],
+        timestamp: Optional[float] = None
+    ) -> Dict[str, Any]:
+        now = timestamp if timestamp is not None else time.time()
+        self.update_history(now, current_scores)
+
+        # Slice window
+        window_start = now - self.window_seconds
+        window_samples = [h for h in self.history if h["t"] >= window_start]
+        if not window_samples:
+            window_samples = [{"t": now, **current_scores}]
+
+        # Compute mean and temporal slope (derivative d/dt)
+        modalities = ["kinematic", "facial", "vocal", "physio"]
+        temporal_stats = {}
+        for m in modalities:
+            vals = [s.get(m, 0.5) for s in window_samples]
+            mean_val = float(np.mean(vals))
+            # Slope: positive = improving trust, negative = degrading
+            if len(vals) > 1:
+                slope = float((vals[-1] - vals[0]) / max(0.1, (window_samples[-1]["t"] - window_samples[0]["t"])))
+            else:
+                slope = 0.0
+            temporal_stats[m] = {
+                "window_mean": round(mean_val, 4),
+                "temporal_trend": round(slope, 4)
+            }
+
+        return {
+            "window_length_seconds": self.window_seconds,
+            "sample_count": len(window_samples),
+            "temporal_stats": temporal_stats
+        }
+
+
+# =====================================================================
+# MODULE 3: CROSS-MODAL ATTENTION FUSION
+# =====================================================================
+
