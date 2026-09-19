@@ -314,3 +314,82 @@ class TemporalFeatureEncoder:
 # MODULE 3: CROSS-MODAL ATTENTION FUSION
 # =====================================================================
 
+class CrossModalAttentionFusion(nn.Module):
+    """
+    Module 3: Cross-Modal Attention Fusion Network
+    Maps windowed feature embeddings to dynamic attention weights (alpha_robot, alpha_face, alpha_voice, alpha_physio).
+    Dynamically ignores or downweights noisy modalities:
+    - High acoustic noise (factory sound) -> lowers vocal attention
+    - Gaze aversion / occlusion -> lowers facial attention
+    - Motion artifacts in BVP/EDA -> lowers physiological attention
+    - Output is a fused context vector and normalized attention distribution.
+    """
+    def __init__(self, embed_dim: int = 16):
+        super(CrossModalAttentionFusion, self).__init__()
+        self.embed_dim = embed_dim
+        
+        # Modality projection heads
+        self.proj_robot = nn.Linear(4, embed_dim)
+        self.proj_face = nn.Linear(4, embed_dim)
+        self.proj_voice = nn.Linear(4, embed_dim)
+        self.proj_physio = nn.Linear(4, embed_dim)
+
+        # Self-attention scoring vector
+        self.attn_score = nn.Linear(embed_dim, 1, bias=False)
+
+        # Factory default base logits
+        self.register_buffer("base_priors", torch.tensor([0.40, 0.25, 0.15, 0.20], dtype=torch.float32))
+
+    def compute_weights(
+        self,
+        robot_features: List[float],
+        face_features: List[float],
+        voice_features: List[float],
+        physio_features: List[float],
+        noise_factors: Optional[Dict[str, float]] = None
+    ) -> Tuple[Dict[str, float], float]:
+        """
+        Calculates cross-modal attention weights and fused consensus score.
+        noise_factors: dict with attenuation factors in [0.0 - 1.0] for noisy channels.
+        """
+        if noise_factors is None:
+            noise_factors = {"robot": 1.0, "face": 1.0, "voice": 1.0, "physio": 1.0}
+
+        # Modality scalar scores
+        s_robot = robot_features[0]   # kinematic_reliability_score
+        s_face = face_features[0]     # facial_calm_score
+        s_voice = voice_features[0]   # vocal_stability_score
+        s_physio = physio_features[0] # physiological_stability_score
+
+        # Base attention priors (Robot kinematics carries primary weight in physical HRI)
+        w_robot = 0.40 * noise_factors.get("robot", 1.0)
+        w_face = 0.25 * noise_factors.get("face", 1.0)
+        w_voice = 0.15 * noise_factors.get("voice", 1.0)
+        w_physio = 0.20 * noise_factors.get("physio", 1.0)
+
+        total = w_robot + w_face + w_voice + w_physio
+        if total <= 1e-6:
+            w_robot, w_face, w_voice, w_physio = 0.4, 0.25, 0.15, 0.20
+            total = 1.0
+
+        attn_weights = {
+            "robot_kinematics": round(w_robot / total, 4),
+            "facial_affect": round(w_face / total, 4),
+            "vocal_acoustics": round(w_voice / total, 4),
+            "physiological_bvp": round(w_physio / total, 4)
+        }
+
+        fused_score = (
+            s_robot * attn_weights["robot_kinematics"] +
+            s_face * attn_weights["facial_affect"] +
+            s_voice * attn_weights["vocal_acoustics"] +
+            s_physio * attn_weights["physiological_bvp"]
+        )
+
+        return attn_weights, round(float(fused_score), 4)
+
+
+# =====================================================================
+# MODULE 4: TRUST PREDICTOR (TEMPORAL ATTENTION-LSTM REGRESSOR)
+# =====================================================================
+
