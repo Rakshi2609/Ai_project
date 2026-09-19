@@ -156,3 +156,45 @@ class FacialBlendshapeExtractor:
         }
 
 
+class VocalProsodyExtractor:
+    """
+    Extracts operator vocal tone and acoustic parameters:
+    - Fundamental pitch F0 (Hz) and pitch variance
+    - Acoustic jitter percentage (vocal tension index)
+    - Acoustic shimmer percentage (amplitude micro-variations)
+    - Unvoiced pause ratio (hesitation duration)
+    - Signal-to-Noise Ratio (SNR in dB) for industrial factory noise resilience
+    """
+    def extract(
+        self,
+        pitch_f0_hz: float = 175.0,
+        f0_std_hz: float = 18.0,
+        jitter_percent: float = 0.85,
+        shimmer_percent: float = 2.1,
+        pause_ratio: float = 0.12,
+        ambient_noise_snr_db: float = 28.0
+    ) -> Dict[str, Any]:
+        # Elevated jitter & hesitation indicate acoustic strain/discomfort
+        acoustic_tension = (min(1.0, jitter_percent / 3.0) * 0.4 +
+                            min(1.0, shimmer_percent / 8.0) * 0.2 +
+                            min(1.0, pause_ratio / 0.5) * 0.4)
+        acoustic_tension = min(1.0, max(0.0, acoustic_tension))
+
+        vocal_stability_score = 1.0 - acoustic_tension
+
+        # Signal quality gate: in high industrial noise (SNR < 10 dB), acoustic reliability drops
+        snr_quality = max(0.1, min(1.0, ambient_noise_snr_db / 30.0))
+
+        return {
+            "pitch_f0_hz": round(float(pitch_f0_hz), 2),
+            "f0_std_hz": round(float(f0_std_hz), 2),
+            "jitter_percent": round(float(jitter_percent), 3),
+            "shimmer_percent": round(float(shimmer_percent), 3),
+            "pause_ratio": round(float(pause_ratio), 3),
+            "ambient_noise_snr_db": round(float(ambient_noise_snr_db), 1),
+            "snr_quality_factor": round(snr_quality, 3),
+            "acoustic_tension": round(acoustic_tension, 4),
+            "vocal_stability_score": round(vocal_stability_score, 4)
+        }
+
+
