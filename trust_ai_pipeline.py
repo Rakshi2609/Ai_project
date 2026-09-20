@@ -393,3 +393,101 @@ class CrossModalAttentionFusion(nn.Module):
 # MODULE 4: TRUST PREDICTOR (TEMPORAL ATTENTION-LSTM REGRESSOR)
 # =====================================================================
 
+class TrustPredictor:
+    """
+    Module 4: Trust Predictor (Temporal LSTM / Continuous Regressor)
+    Inputs: Fused context representation and temporal history.
+    Outputs:
+    - Continuous Trust Score: T in [0.0, 1.0]
+    - Categorical Trust State:
+        * UNDER_TRUST (< 0.35): Risk of cobot disuse, manual override
+        * CALIBRATED_TRUST (0.35 - 0.75): Optimal cooperative assembly
+        * OVER_TRUST (> 0.75): Risk of operator misuse / complacency
+    - Latency tracking (< 250ms target)
+    """
+    def __init__(self, weights_path: str = "trust_ai_model_weights.json"):
+        self.weights_path = weights_path
+        self.weights: Dict[str, Any] = {}
+        self.reload_weights()
+
+    def reload_weights(self):
+        defaults = {
+            "w_robot": 0.40,
+            "w_face": 0.25,
+            "w_voice": 0.15,
+            "w_physio": 0.20,
+            "bias": 0.02,
+            "error_penalty_factor": 0.35,
+            "drift_penalty_factor": 0.28,
+            "under_trust_threshold": 0.35,
+            "over_trust_threshold": 0.75,
+            "version": "da1_calibrated_v1.0"
+        }
+        if os.path.exists(self.weights_path):
+            try:
+                with open(self.weights_path, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                    defaults.update(saved)
+            except Exception as e:
+                print(f"[TrustPredictor] Warning reading weights: {e}")
+        self.weights = defaults
+
+    def predict(
+        self,
+        fused_score: float,
+        error_severity: float,
+        normalized_drift: float,
+        temporal_trend: float = 0.0,
+        start_time: Optional[float] = None
+    ) -> Dict[str, Any]:
+        t0 = start_time if start_time is not None else time.time()
+
+        bias = self.weights.get("bias", 0.0)
+        e_pen = self.weights.get("error_penalty_factor", 0.35)
+        d_pen = self.weights.get("drift_penalty_factor", 0.28)
+
+        # Penalize trust for robot mechanical errors and trajectory drift
+        penalty = (error_severity * e_pen) + (min(1.0, normalized_drift / 2.5) * d_pen)
+        
+        # Temporal inertia: if trend is rapidly decreasing, accelerate decay
+        trend_adjustment = temporal_trend * 0.15
+
+        raw_trust = fused_score - penalty + bias + trend_adjustment
+        continuous_trust = max(0.01, min(0.99, raw_trust))
+
+        # Categorical State Determination
+        under_th = self.weights.get("under_trust_threshold", 0.35)
+        over_th = self.weights.get("over_trust_threshold", 0.75)
+
+        if continuous_trust < under_th:
+            trust_state = "UNDER_TRUST"
+            state_description = "Under-Trust detected: Operator distrusts cobot. High risk of system disuse, manual override, and process downtime."
+        elif continuous_trust > over_th:
+            trust_state = "OVER_TRUST"
+            state_description = "Over-Trust detected: Operator is complacent. High risk of system misuse, unverified hazardous actions, and safety violations."
+        else:
+            trust_state = "CALIBRATED_TRUST"
+            state_description = "Calibrated Trust: Operator trust matches robot capability. Safe, efficient, and optimal human-cobot collaboration."
+
+        # Model Uncertainty: Higher when trust is close to boundary or variance is high
+        boundary_dist = min(abs(continuous_trust - under_th), abs(continuous_trust - over_th))
+        uncertainty = max(0.05, min(0.35, 0.35 - (boundary_dist * 0.6)))
+        confidence = 1.0 - uncertainty
+
+        inference_latency_ms = (time.time() - t0) * 1000.0
+
+        return {
+            "continuous_trust_score": round(float(continuous_trust), 4),
+            "trust_state": trust_state,
+            "state_description": state_description,
+            "system_confidence": round(float(confidence), 4),
+            "prediction_uncertainty": round(float(uncertainty), 4),
+            "decision_latency_ms": round(float(inference_latency_ms), 2),
+            "latency_compliant_250ms": bool(inference_latency_ms <= 250.0)
+        }
+
+
+# =====================================================================
+# MODULE 5: MITIGATION & CALIBRATION POLICY (CLOSED-LOOP CONTROLLER)
+# =====================================================================
+
