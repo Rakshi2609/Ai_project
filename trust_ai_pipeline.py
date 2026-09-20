@@ -491,3 +491,325 @@ class TrustPredictor:
 # MODULE 5: MITIGATION & CALIBRATION POLICY (CLOSED-LOOP CONTROLLER)
 # =====================================================================
 
+class MitigationCalibrationPolicy:
+    """
+    Module 5: Mitigation & Calibration Policy
+    Translates trust prediction and task context into closed-loop robotic control commands:
+    1. Maintain Operations (Speed 1.0x, normal feedback)
+    2. Increase Transparency (Speed 0.85x, HUD intent visualizer, audio intent)
+    3. Reduce Speed & Request Operator Validation (Speed 0.40x, amber indicator, operator touch/gesture ACK)
+    4. Trigger Active Trust Recovery (Speed 0.20x / safe pause, error admission, safe trajectory recalculation)
+    5. Over-Trust Safety Alert (High-hazard validation lock, prevents complacency)
+    """
+    def decide(
+        self,
+        trust_score: float,
+        trust_state: str,
+        error_type: str,
+        error_severity: float,
+        kinematic_drift: float
+    ) -> Dict[str, Any]:
+        # Closed-loop mitigation logic
+        if error_type in ["gripper_slip", "collision_near_miss", "emergency_halt"] or trust_score < 0.25:
+            action = "TRIGGER_ACTIVE_TRUST_RECOVERY"
+            speed_factor = 0.20
+            transparency_level = "MAXIMUM_EXPLANATORY"
+            requires_operator_validation = True
+            recovery_active = True
+            hud_message = (
+                f"Cobot Active Trust Recovery: Acknowledging robot fault ({error_type}). "
+                f"Holding safe standoff pose (speed limited to 20%). Recalculating compliant trajectory "
+                f"and awaiting operator validation before resuming collaborative assembly."
+            )
+            control_signal = "SAFE_STANDOFF_AND_RECALIBRATE"
+
+        elif trust_state == "UNDER_TRUST" or kinematic_drift > 0.35:
+            action = "REDUCE_SPEED_REQUEST_VALIDATION"
+            speed_factor = 0.40
+            transparency_level = "HIGH_CAUTION"
+            requires_operator_validation = True
+            recovery_active = False
+            hud_message = (
+                "Cobot Calibration Alert: Under-trust detected. Reducing execution velocity to 40%. "
+                "Projecting intended assembly path on workbench. Please touch safety sensor or approve via pendant to continue."
+            )
+            control_signal = "DECELERATE_AND_PROMPT_HUMAN_CONFIRMATION"
+
+        elif trust_state == "OVER_TRUST":
+            action = "OVER_TRUST_SAFETY_ALERT"
+            speed_factor = 0.80
+            transparency_level = "SAFETY_BOUNDARY_HUD"
+            requires_operator_validation = True
+            recovery_active = False
+            hud_message = (
+                "Cobot Safety Warning: Over-trust detected. Operator complacency risk during shared payload maneuver. "
+                "Enforcing mandatory dual-confirmation on high-hazard fastener alignment."
+            )
+            control_signal = "ENFORCE_DUAL_OPERATOR_VERIFICATION"
+
+        elif trust_score < 0.50:
+            action = "INCREASE_TRANSPARENCY"
+            speed_factor = 0.85
+            transparency_level = "INTENT_PROJECTION"
+            requires_operator_validation = False
+            recovery_active = False
+            hud_message = (
+                "Cobot Intent Transparency: Operator trust slightly hesitant. Displaying planned end-effector trajectory, "
+                "joint torque safety envelope, and upcoming pick-and-place step to reinforce operator confidence."
+            )
+            control_signal = "STREAM_REALTIME_COBOT_INTENT_HUD"
+
+        else:
+            action = "MAINTAIN_OPERATIONS"
+            speed_factor = 1.00
+            transparency_level = "NOMINAL"
+            requires_operator_validation = False
+            recovery_active = False
+            hud_message = "Cobot Status Nominal: Human-robot trust calibrated. Operating at full programmed collaboration velocity (1.0x)."
+            control_signal = "EXECUTE_NOMINAL_COOPERATIVE_CYCLE"
+
+        return {
+            "recommended_action": action,
+            "execution_speed_factor": speed_factor,
+            "transparency_level": transparency_level,
+            "requires_operator_validation": requires_operator_validation,
+            "active_trust_recovery_engaged": recovery_active,
+            "hud_transparency_message": hud_message,
+            "low_level_control_signal": control_signal
+        }
+
+
+# =====================================================================
+# INTEGRATED PIPELINE ENGINE
+# =====================================================================
+
+class CobotTrustPipeline:
+    """
+    Main closed-loop pipeline orchestrating all 5 modules from DA-1.
+    """
+    def __init__(
+        self,
+        log_path: str = "trust_ai_feedback_logs.jsonl",
+        weights_path: str = "trust_ai_model_weights.json"
+    ):
+        self.log_path = log_path
+        self.weights_path = weights_path
+
+        # Instantiate 5 Modules
+        self.mod1_robot = RobotTelemetryExtractor()
+        self.mod1_face = FacialBlendshapeExtractor()
+        self.mod1_voice = VocalProsodyExtractor()
+        self.mod1_physio = PhysiologicalBvpExtractor()
+        self.mod2_encoder = TemporalFeatureEncoder(default_window_seconds=5.0)
+        self.mod3_fusion = CrossModalAttentionFusion()
+        self.mod4_predictor = TrustPredictor(weights_path=self.weights_path)
+        self.mod5_policy = MitigationCalibrationPolicy()
+
+    def run_inference(
+        self,
+        task_name: str = "UR5 Collaborative Assembly: Gearbox Fastening",
+        planned_trajectory: Optional[List[List[float]]] = None,
+        actual_trajectory: Optional[List[List[float]]] = None,
+        execution_speed_mps: float = 0.75,
+        error_type: str = "nominal",
+        joint_torque_anomaly: float = 0.05,
+        execution_latency_ms: float = 45.0,
+        facial_params: Optional[Dict[str, Any]] = None,
+        vocal_params: Optional[Dict[str, Any]] = None,
+        physio_params: Optional[Dict[str, Any]] = None,
+        window_seconds: float = 5.0
+    ) -> Dict[str, Any]:
+        t0 = time.time()
+
+        if planned_trajectory is None:
+            planned_trajectory = [[0.0, 0.4, 0.2], [0.1, 0.45, 0.25], [0.2, 0.5, 0.3], [0.3, 0.5, 0.2]]
+        if actual_trajectory is None:
+            actual_trajectory = [[0.0, 0.4, 0.2], [0.11, 0.44, 0.26], [0.21, 0.49, 0.29], [0.3, 0.5, 0.2]]
+        if facial_params is None:
+            facial_params = {"brow_furrow": 0.12, "fear_expression": 0.08, "anger_expression": 0.05, "facial_entropy": 0.18, "dominant_emotion": "Neutral"}
+        if vocal_params is None:
+            vocal_params = {"pitch_f0_hz": 175.0, "f0_std_hz": 18.0, "jitter_percent": 0.85, "ambient_noise_snr_db": 28.0}
+        if physio_params is None:
+            physio_params = {"heart_rate_bpm": 74.0, "hrv_rmssd_ms": 48.0, "eda_microsiemens": 3.2, "has_motion_artifact": False}
+
+        # 1. Module 1: Multimodal Extraction
+        robot_feats = self.mod1_robot.extract(
+            planned_trajectory=planned_trajectory,
+            actual_trajectory=actual_trajectory,
+            execution_speed_mps=execution_speed_mps,
+            error_type=error_type,
+            joint_torque_anomaly=joint_torque_anomaly,
+            execution_latency_ms=execution_latency_ms
+        )
+        face_feats = self.mod1_face.extract(**facial_params)
+        vocal_feats = self.mod1_voice.extract(**vocal_params)
+        physio_feats = self.mod1_physio.extract(**physio_params)
+
+        # Noise factors for Cross-Modal Attention downweighting
+        noise_factors = {
+            "robot": 1.0,
+            "face": max(0.2, 1.0 - face_feats.get("gaze_drift_variance", 0.0) * 2.0),
+            "voice": vocal_feats.get("snr_quality_factor", 1.0),
+            "physio": physio_feats.get("physio_reliability_factor", 1.0)
+        }
+
+        # 2. Module 2: Temporal Encoding
+        self.mod2_encoder.set_window_size(window_seconds)
+        current_step_scores = {
+            "kinematic": robot_feats["kinematic_reliability_score"],
+            "facial": face_feats["facial_calm_score"],
+            "vocal": vocal_feats["vocal_stability_score"],
+            "physio": physio_feats["physiological_stability_score"]
+        }
+        temporal_encoding = self.mod2_encoder.encode(current_step_scores, timestamp=t0)
+        avg_trend = float(np.mean([stats["temporal_trend"] for stats in temporal_encoding["temporal_stats"].values()]))
+
+        # 3. Module 3: Cross-Modal Attention Fusion
+        attention_weights, fused_score = self.mod3_fusion.compute_weights(
+            robot_features=[robot_feats["kinematic_reliability_score"], robot_feats["normalized_drift"], robot_feats["error_severity"], robot_feats["execution_speed_mps"]],
+            face_features=[face_feats["facial_calm_score"], face_feats["stress_index"], face_feats["facial_entropy"], face_feats["gaze_drift_variance"]],
+            voice_features=[vocal_feats["vocal_stability_score"], vocal_feats["acoustic_tension"], vocal_feats["jitter_percent"], vocal_feats["pause_ratio"]],
+            physio_features=[physio_feats["physiological_stability_score"], physio_feats["physiological_arousal_index"], physio_feats["heart_rate_bpm"] / 120.0, physio_feats["eda_microsiemens"] / 10.0],
+            noise_factors=noise_factors
+        )
+
+        # 4. Module 4: Trust Predictor
+        prediction = self.mod4_predictor.predict(
+            fused_score=fused_score,
+            error_severity=robot_feats["error_severity"],
+            normalized_drift=robot_feats["normalized_drift"],
+            temporal_trend=avg_trend,
+            start_time=t0
+        )
+
+        # 5. Module 5: Mitigation & Calibration Policy
+        policy_decision = self.mod5_policy.decide(
+            trust_score=prediction["continuous_trust_score"],
+            trust_state=prediction["trust_state"],
+            error_type=robot_feats["error_type"],
+            error_severity=robot_feats["error_severity"],
+            kinematic_drift=robot_feats["normalized_drift"]
+        )
+
+        # Human-Interpretable Explainability Summary
+        explanations = []
+        if robot_feats["error_type"] != "nominal":
+            explanations.append(f"Cobot error logged: '{robot_feats['error_type']}' (severity: {robot_feats['error_severity']:.2f}).")
+        if robot_feats["normalized_drift"] > 0.25:
+            explanations.append(f"Cobot end-effector trajectory deviation ({robot_feats['normalized_drift']:.2f} drift units).")
+        if face_feats["stress_index"] > 0.40:
+            explanations.append(f"Elevated operator facial stress/brow furrow (AU04={face_feats['brow_furrow']:.2f}).")
+        if vocal_feats["acoustic_tension"] > 0.40:
+            explanations.append(f"Vocal jitter & hesitation strain ({vocal_feats['jitter_percent']:.2f}% jitter).")
+        if physio_feats["has_motion_artifact"]:
+            explanations.append("BVP motion artifact detected; bandpass filter active & physio attention downweighted.")
+        elif physio_feats["physiological_arousal_index"] > 0.50:
+            explanations.append(f"Elevated autonomic arousal (Heart Rate: {physio_feats['heart_rate_bpm']} bpm, EDA: {physio_feats['eda_microsiemens']} uS).")
+        if not explanations:
+            explanations.append("Nominal multimodal concordance. Smooth robot trajectory, relaxed facial affect, and stable physiological vitals.")
+
+        record = {
+            "session_id": f"cobot_session_{int(t0 * 1000)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "task_name": task_name,
+            "architecture": "Multimodal Temporal Attention-LSTM (BCSE306L DA-1)",
+            "module_1_telemetry": {
+                "robot_telemetry": robot_feats,
+                "facial_affect": face_feats,
+                "vocal_acoustics": vocal_feats,
+                "physiological_bvp": physio_feats
+            },
+            "module_2_temporal_encoding": temporal_encoding,
+            "module_3_cross_modal_attention": {
+                "dynamic_attention_weights": attention_weights,
+                "fused_consensus_score": fused_score,
+                "noise_attenuation_factors": noise_factors
+            },
+            "module_4_trust_prediction": prediction,
+            "module_5_mitigation_policy": policy_decision,
+            "explainability_summary": " ".join(explanations)
+        }
+
+        return record
+
+    def log_supervisor_feedback(
+        self,
+        record: Dict[str, Any],
+        supervisor_ground_truth_trust: float,
+        is_false_intervention: bool,
+        subject_id: str = "Subject_01",
+        notes: str = ""
+    ):
+        """
+        Logs ground-truth supervisor calibration data for subject-wise cross-validation and retraining.
+        """
+        pred_trust = record["module_4_trust_prediction"]["continuous_trust_score"]
+        calibration_error = abs(pred_trust - supervisor_ground_truth_trust)
+
+        feedback_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "subject_id": subject_id,
+            "session_id": record["session_id"],
+            "task_name": record.get("task_name", "UR5 Collaborative Assembly"),
+            "predicted_trust": pred_trust,
+            "supervisor_ground_truth_trust": round(float(supervisor_ground_truth_trust), 4),
+            "calibration_error": round(float(calibration_error), 4),
+            "is_false_intervention": bool(is_false_intervention),
+            "supervisor_notes": notes,
+            "input_features": {
+                "kinematic_reliability": record["module_1_telemetry"]["robot_telemetry"]["kinematic_reliability_score"],
+                "facial_calm": record["module_1_telemetry"]["facial_affect"]["facial_calm_score"],
+                "vocal_stability": record["module_1_telemetry"]["vocal_acoustics"]["vocal_stability_score"],
+                "physio_stability": record["module_1_telemetry"]["physiological_bvp"]["physiological_stability_score"],
+                "normalized_drift": record["module_1_telemetry"]["robot_telemetry"]["normalized_drift"],
+                "error_severity": record["module_1_telemetry"]["robot_telemetry"]["error_severity"]
+            },
+            "full_record": record
+        }
+
+        with open(self.log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(feedback_entry) + "\n")
+        print(f"[CobotTrustPipeline] Logged supervisor feedback to '{self.log_path}'.")
+
+
+# Alias for backward compatibility with previous server imports
+TrustAIEngine = CobotTrustPipeline
+
+
+if __name__ == "__main__":
+    print("=" * 80)
+    print(" BCSE306L DA-1: MULTIMODAL MACHINE LEARNING FOR PREDICTING HUMAN TRUST IN COBOTS")
+    print("=" * 80)
+
+    pipeline = CobotTrustPipeline()
+
+    print("\n[Trial 1: Nominal Collaborative Assembly]")
+    res1 = pipeline.run_inference(
+        task_name="UR5 Collaborative Assembly: Fastener Insertion",
+        execution_speed_mps=0.80,
+        error_type="nominal",
+        joint_torque_anomaly=0.04
+    )
+    print(f"Trust Score:      {res1['module_4_trust_prediction']['continuous_trust_score'] * 100:.2f}%")
+    print(f"Trust State:      {res1['module_4_trust_prediction']['trust_state']}")
+    print(f"Mitigation HUD:   {res1['module_5_mitigation_policy']['recommended_action']} (Speed: {res1['module_5_mitigation_policy']['execution_speed_factor']}x)")
+    print(f"Attention (Kin/Face/Voice/Physio): {res1['module_3_cross_modal_attention']['dynamic_attention_weights']}")
+    print(f"Latency:          {res1['module_4_trust_prediction']['decision_latency_ms']:.2f} ms")
+
+    print("\n[Trial 2: Gripper Slip & Trajectory Overshoot (Under-Trust Disuse Risk)]")
+    res2 = pipeline.run_inference(
+        task_name="UR5 Collaborative Assembly: Fastener Insertion",
+        planned_trajectory=[[0, 0.4, 0.2], [0.1, 0.45, 0.25], [0.2, 0.5, 0.3], [0.3, 0.5, 0.2]],
+        actual_trajectory=[[0, 0.4, 0.2], [0.25, 0.30, 0.15], [0.45, 0.20, 0.10], [0.6, 0.1, 0.05]],
+        execution_speed_mps=0.45,
+        error_type="gripper_slip",
+        joint_torque_anomaly=0.78,
+        facial_params={"brow_furrow": 0.72, "fear_expression": 0.65, "anger_expression": 0.55, "facial_entropy": 0.68, "dominant_emotion": "Fearful/Startled"},
+        vocal_params={"pitch_f0_hz": 240.0, "f0_std_hz": 42.0, "jitter_percent": 2.8, "ambient_noise_snr_db": 22.0},
+        physio_params={"heart_rate_bpm": 102.0, "hrv_rmssd_ms": 22.0, "eda_microsiemens": 8.6, "has_motion_artifact": False}
+    )
+    print(f"Trust Score:      {res2['module_4_trust_prediction']['continuous_trust_score'] * 100:.2f}%")
+    print(f"Trust State:      {res2['module_4_trust_prediction']['trust_state']}")
+    print(f"Mitigation HUD:   {res2['module_5_mitigation_policy']['recommended_action']} (Speed: {res2['module_5_mitigation_policy']['execution_speed_factor']}x)")
+    print(f"Action Message:   {res2['module_5_mitigation_policy']['hud_transparency_message']}")
+    print("=" * 80)
