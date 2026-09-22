@@ -260,8 +260,9 @@ class TemporalFeatureEncoder:
     - Rapid decay when robot errs (fast trust collapse)
     - Slow, gradual accumulation through repeated safe collaboration cycles
     """
-    def __init__(self, default_window_seconds: float = 5.0):
+    def __init__(self, default_window_seconds: float = 5.0, max_buffer_samples: int = 500):
         self.window_seconds = default_window_seconds
+        self.max_buffer_samples = max_buffer_samples
         self.history: List[Dict[str, float]] = []
 
     def set_window_size(self, seconds: float):
@@ -269,9 +270,11 @@ class TemporalFeatureEncoder:
 
     def update_history(self, timestamp: float, scores: Dict[str, float]):
         self.history.append({"t": timestamp, **scores})
-        # Keep only records within max history buffer (20 seconds)
+        # Keep only records within max history buffer (20 seconds) and bounded size
         cutoff = timestamp - 20.0
         self.history = [h for h in self.history if h["t"] >= cutoff]
+        if len(self.history) > self.max_buffer_samples:
+            self.history = self.history[-self.max_buffer_samples:]
 
     def encode(
         self,
