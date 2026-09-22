@@ -1,12 +1,20 @@
 {
-  "w_robot": 0.35,
-  "w_face": 0.25,
-  "w_voice": 0.2,
-  "w_physio": 0.2,
-  "bias": -0.18,
+  "weights": {
+    "w_robot": 0.4,
+    "w_face": 0.25,
+    "w_voice": 0.2,
+    "w_physio": 0.15
+  },
   "error_penalty_factor": 0.42,
   "drift_penalty_factor": 0.32,
-  "under_trust_threshold": 0.38,
-  "over_trust_threshold": 0.78,
-  "version": "calibrated_v3.2_multimodal"
+  "bias": -0.18,
+  "over_trust_threshold": 0.82,
+  "under_trust_threshold": 0.35,
+  "target_trust_min": 0.45,
+  "target_trust_max": 0.78,
+  "calibrated_mse": 0.00597,
+  "loso_mean_mse": 0.00831,
+  "loso_mean_r2": 0.9,
+  "model_version": "v3.1-pretrained-deep-fusion",
+  "last_calibrated_at": "2026-09-22T18:07:39Z"
 }

@@ -17,6 +17,7 @@ ROUTES_TO_TEST = [
     ("Next.js Analytics & Retraining", "http://127.0.0.1:3000/analytics"),
     ("FastAPI Scenarios API", "http://127.0.0.1:8000/api/scenarios"),
     ("FastAPI Baselines API", "http://127.0.0.1:8000/api/eval/baselines"),
+    ("FastAPI Pretrained Models API", "http://127.0.0.1:8000/api/models/pretrained/status"),
 ]
 
 def test_endpoints():
