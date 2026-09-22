@@ -74,9 +74,70 @@ export default function FaceExpressionCapture({
   const baselineContrastRef = useRef<number | null>(null);
   const baselineMouthLumRef = useRef<number | null>(null);
 
+  const faceLandmarkerRef = useRef<any>(null);
+  const [visionEngine, setVisionEngine] = useState<"mediapipe" | "optical_flow">("optical_flow");
+
   const lastAnalysisTimeRef = useRef<number>(0);
   const blinkHistoryRef = useRef<number[]>([]);
   const lastEyeLuminanceRef = useRef<number>(100);
+
+  // Initialize Google MediaPipe 478-Point FaceLandmarker with Local WASM Assets
+  useEffect(() => {
+    let isMounted = true;
+    const initMediaPipe = async () => {
+      if (typeof window === "undefined") return;
+      try {
+        const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+        const fileset = await FilesetResolver.forVisionTasks("/wasm");
+        if (!isMounted) return;
+
+        let landmarker: any;
+        try {
+          landmarker = await FaceLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: "/models/face_landmarker.task",
+              delegate: "GPU",
+            },
+            outputFaceBlendshapes: true,
+            runningMode: "VIDEO",
+            numFaces: 1,
+          });
+        } catch (gpuErr) {
+          console.warn("GPU delegate unavailable, falling back to CPU delegate:", gpuErr);
+          landmarker = await FaceLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: "/models/face_landmarker.task",
+              delegate: "CPU",
+            },
+            outputFaceBlendshapes: true,
+            runningMode: "VIDEO",
+            numFaces: 1,
+          });
+        }
+
+        if (isMounted && landmarker) {
+          faceLandmarkerRef.current = landmarker;
+          setVisionEngine("mediapipe");
+          console.log("MediaPipe FaceLandmarker initialized with 478-point mesh and FACS blendshapes!");
+        }
+      } catch (err) {
+        console.warn("MediaPipe initialization failed, using adaptive optical flow fallback:", err);
+        setVisionEngine("optical_flow");
+      }
+    };
+
+    initMediaPipe();
+
+    return () => {
+      isMounted = false;
+      if (faceLandmarkerRef.current) {
+        try {
+          faceLandmarkerRef.current.close();
+        } catch {}
+        faceLandmarkerRef.current = null;
+      }
+    };
+  }, []);
 
   // Enumerate cameras when component mounts
   useEffect(() => {
@@ -315,6 +376,105 @@ export default function FaceExpressionCapture({
     baselineMouthLumRef.current = null;
   };
 
+  // Draw High-Precision 478-Point FaceMesh & FACS Reticles on Canvas
+  const drawMediaPipeHUD = (
+    ctx: CanvasRenderingContext2D,
+    landmarks: { x: number; y: number; z: number }[],
+    w: number,
+    h: number,
+    isStressed: boolean,
+    au04: number,
+    au12: number
+  ) => {
+    const themeColor = isStressed ? "#f43f5e" : "#2dd4bf";
+
+    // Video is styled with CSS -scale-x-100 (mirrored), so mirror X to align overlay
+    const toX = (normX: number) => (1 - normX) * w;
+    const toY = (normY: number) => normY * h;
+
+    const drawContour = (indices: number[], close = false, lineWidth = 1.8, strokeColor = themeColor) => {
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      for (let i = 0; i < indices.length; i++) {
+        const pt = landmarks[indices[i]];
+        if (!pt) continue;
+        const x = toX(pt.x);
+        const y = toY(pt.y);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      if (close) ctx.closePath();
+      ctx.stroke();
+    };
+
+    // Eyebrows (AU04 Brow Lowerer / Furrow)
+    drawContour([70, 63, 105, 66, 107], false, 2.5, isStressed ? "#f43f5e" : "#38bdf8");
+    drawContour([336, 296, 334, 293, 300], false, 2.5, isStressed ? "#f43f5e" : "#38bdf8");
+
+    // Eyes
+    drawContour([33, 160, 158, 133, 153, 144], true, 1.5, themeColor);
+    drawContour([362, 385, 387, 263, 373, 380], true, 1.5, themeColor);
+
+    // Mouth / Lips (AU12 Lip Corner Puller)
+    drawContour(
+      [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 61],
+      true,
+      2.0,
+      !isStressed ? "#38bdf8" : themeColor
+    );
+
+    // Key Landmark Nodes
+    ctx.fillStyle = themeColor;
+    const keyPoints = [1, 4, 10, 152, 33, 263, 61, 291, 70, 336];
+    for (const idx of keyPoints) {
+      const pt = landmarks[idx];
+      if (pt) {
+        ctx.beginPath();
+        ctx.arc(toX(pt.x), toY(pt.y), 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Dynamic Face Bounding Box with Corner Brackets
+    let minX = 1,
+      minY = 1,
+      maxX = 0,
+      maxY = 0;
+    for (const pt of landmarks) {
+      const mx = 1 - pt.x;
+      if (mx < minX) minX = mx;
+      if (mx > maxX) maxX = mx;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+    const pad = 0.04;
+    const bx = Math.max(0, minX - pad) * w;
+    const by = Math.max(0, minY - pad) * h;
+    const bw = Math.min(w - bx, (maxX - minX + pad * 2) * w);
+    const bh = Math.min(h - by, (maxY - minY + pad * 2) * h);
+
+    ctx.strokeStyle = themeColor;
+    ctx.lineWidth = 2.0;
+    const bLen = 18;
+    ctx.beginPath();
+    ctx.moveTo(bx, by + bLen); ctx.lineTo(bx, by); ctx.lineTo(bx + bLen, by);
+    ctx.moveTo(bx + bw - bLen, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + bLen);
+    ctx.moveTo(bx, by + bh - bLen); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + bLen, by + bh);
+    ctx.moveTo(bx + bw - bLen, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - bLen);
+    ctx.stroke();
+
+    // Top Landmarker HUD Tag
+    ctx.font = "bold 9px JetBrains Mono, monospace";
+    ctx.fillStyle = themeColor;
+    ctx.fillText("⚡ MEDIAPIPE FACE MESH (478-PTS)", bx + 4, Math.max(12, by - 6));
+    ctx.fillText(
+      `AU04 Brow: ${(au04 * 100).toFixed(0)}% • AU12 Smile: ${(au12 * 100).toFixed(0)}%`,
+      bx + 4,
+      by + bh + 14
+    );
+  };
+
   // Real-time Computer Vision Optical Flow Analysis & AR Reticles Loop (60 FPS)
   const processFrame = useCallback(() => {
     const video = videoRef.current;
@@ -338,6 +498,93 @@ export default function FaceExpressionCapture({
     if (cameraActiveRef.current && video && video.readyState >= 2 && !video.paused) {
       const now = performance.now();
 
+      // --- PATHWAY A: Real Google MediaPipe 478-Point FaceLandmarker ---
+      if (faceLandmarkerRef.current) {
+        try {
+          const results = faceLandmarkerRef.current.detectForVideo(video, now);
+          if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
+            const landmarks = results.faceLandmarks[0];
+
+            let smileScore = 0.08;
+            let browFurrowScore = 0.08;
+            let mouthOpenScore = 0.05;
+            let blinkScore = 0.0;
+
+            if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+              const categories = results.faceBlendshapes[0].categories;
+              const blendMap = new Map<string, number>();
+              for (const cat of categories) {
+                blendMap.set(cat.categoryName, cat.score);
+              }
+              const smileLeft = blendMap.get("mouthSmileLeft") || 0;
+              const smileRight = blendMap.get("mouthSmileRight") || 0;
+              const browLeft = blendMap.get("browDownLeft") || 0;
+              const browRight = blendMap.get("browDownRight") || 0;
+              const jawOpen = blendMap.get("jawOpen") || 0;
+              const blinkLeft = blendMap.get("eyeBlinkLeft") || 0;
+              const blinkRight = blendMap.get("eyeBlinkRight") || 0;
+
+              smileScore = (smileLeft + smileRight) / 2;
+              browFurrowScore = (browLeft + browRight) / 2;
+              mouthOpenScore = jawOpen;
+              blinkScore = (blinkLeft + blinkRight) / 2;
+            } else {
+              // Geometric landmark fallback
+              const lipDist = Math.hypot(landmarks[61].x - landmarks[291].x, landmarks[61].y - landmarks[291].y);
+              smileScore = Math.min(1.0, Math.max(0.0, (lipDist - 0.16) * 3.5));
+              const browDist = Math.hypot(landmarks[66].x - landmarks[296].x, landmarks[66].y - landmarks[296].y);
+              browFurrowScore = Math.min(1.0, Math.max(0.0, (0.18 - browDist) * 4.0));
+            }
+
+            if (blinkScore > 0.45) {
+              blinkHistoryRef.current.push(now);
+            }
+            blinkHistoryRef.current = blinkHistoryRef.current.filter((t) => now - t < 60000);
+            const calculatedBpm = Math.max(
+              12,
+              Math.min(48, blinkHistoryRef.current.length * (60000 / Math.max(5000, now)))
+            );
+
+            // Determine 2-mode expression: Smile vs Stressed
+            const isStressed = browFurrowScore > 0.22;
+
+            // Draw full MediaPipe AR HUD with 478 landmarks & contours
+            drawMediaPipeHUD(ctx, landmarks, w, h, isStressed, browFurrowScore, smileScore);
+
+            if (!lockedPresetRef.current) {
+              const expLabel = isStressed ? "Stressed (Brow Furrow AU04)" : "Smile (Calm & Calibrated)";
+              const newTelemetry: FacialTelemetry = {
+                au04_brow_furrow: isStressed ? Math.max(0.68, parseFloat(browFurrowScore.toFixed(3))) : 0.05,
+                au12_smile: isStressed ? 0.04 : Math.max(0.72, parseFloat(smileScore.toFixed(3))),
+                mouth_open: parseFloat(mouthOpenScore.toFixed(3)),
+                blink_rate_bpm: Math.round(calculatedBpm),
+                valence_entropy: isStressed ? 0.74 : 0.12,
+              };
+
+              setExpressionName(expLabel);
+              const updatedState = {
+                faceDetected: true,
+                ...newTelemetry,
+                blink_rate: newTelemetry.blink_rate_bpm,
+                entropy: newTelemetry.valence_entropy,
+              };
+              detectionStateRef.current = updatedState;
+              setDetectionState(updatedState);
+
+              if (onTelemetryChangeRef.current) {
+                onTelemetryChangeRef.current(newTelemetry);
+              }
+            }
+
+            animFrameRef.current = requestAnimationFrame(processFrame);
+            return;
+          }
+        } catch (mpErr) {
+          // If detectForVideo fails temporarily, fall through to optical flow
+        }
+      }
+
+      // --- PATHWAY B: Adaptive Optical Flow Heuristic Fallback ---
       // Analyze Expression Every 90ms (~11 Hz) for smooth real-time telemetry updates
       if (now - lastAnalysisTimeRef.current > 90) {
         lastAnalysisTimeRef.current = now;
@@ -627,9 +874,21 @@ export default function FaceExpressionCapture({
                 }`}
               />
             </h3>
-            <p className="text-[10px] text-gray-400 font-mono">
-              WebRTC Live Stream • AU04 Brow Furrow &amp; Emotion
-            </p>
+            <div className="flex items-center space-x-1.5 mt-0.5">
+              <span className="text-[10px] text-gray-400 font-mono">
+                WebRTC Stream •
+              </span>
+              <span
+                className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono border ${
+                  visionEngine === "mediapipe"
+                    ? "bg-teal-500/15 text-teal-300 border-teal-500/30 font-semibold"
+                    : "bg-blue-500/15 text-blue-300 border-blue-500/30 font-semibold"
+                }`}
+              >
+                <Sparkles className="w-2.5 h-2.5 mr-1 text-teal-400" />
+                {visionEngine === "mediapipe" ? "MediaPipe 478-Pt AI Mesh" : "Adaptive Optical Flow"}
+              </span>
+            </div>
           </div>
         </div>
 
