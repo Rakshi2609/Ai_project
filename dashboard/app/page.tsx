@@ -37,14 +37,19 @@ export default function MasterCockpitPage() {
   // Inference Prediction Output
   const [inference, setInference] = useState<InferenceResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const lastCallRef = useRef<number>(0);
+  const isInferringRef = useRef<boolean>(false);
+  const hasPendingCallRef = useRef<boolean>(false);
 
-  // Send Multimodal Packet to FastAPI Backend
+  // Send Multimodal Packet to FastAPI Backend with guaranteed delivery
   const runInference = useCallback(async () => {
+    if (isInferringRef.current) {
+      hasPendingCallRef.current = true;
+      return;
+    }
+
     try {
-      const now = Date.now();
-      if (now - lastCallRef.current < 400) return; // Throttling
-      lastCallRef.current = now;
+      isInferringRef.current = true;
+      setLoading(true);
 
       const payload = {
         task_name: "UR5 High-Precision Collaborative Assembly",
@@ -79,6 +84,13 @@ export default function MasterCockpitPage() {
       }
     } catch (err) {
       console.error("Live inference error:", err);
+    } finally {
+      setLoading(false);
+      isInferringRef.current = false;
+      if (hasPendingCallRef.current) {
+        hasPendingCallRef.current = false;
+        runInference();
+      }
     }
   }, [facialData, vocalData, robotState]);
 
@@ -87,11 +99,11 @@ export default function MasterCockpitPage() {
     runInference();
   }, [runInference]);
 
-  // Periodic refresh loop every 1.2s to capture ongoing biometric stream
+  // Periodic refresh loop every 1.5s to ensure continuous stream sync
   useEffect(() => {
     const timer = setInterval(() => {
       runInference();
-    }, 1200);
+    }, 1500);
     return () => clearInterval(timer);
   }, [runInference]);
 

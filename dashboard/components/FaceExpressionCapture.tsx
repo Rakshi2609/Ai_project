@@ -13,7 +13,8 @@ import {
   RefreshCw,
   Sliders,
   CheckCircle2,
-  HelpCircle,
+  Share2,
+  Zap,
 } from "lucide-react";
 import { FacialTelemetry } from "@/types/telemetry";
 
@@ -35,10 +36,11 @@ export default function FaceExpressionCapture({
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [warningMsg, setWarningMsg] = useState<string | null>(null);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [manualMode, setManualMode] = useState<boolean>(false);
+  const [expressionName, setExpressionName] = useState<string>("Neutral (Calm)");
+  const [frameTick, setFrameTick] = useState<number>(0);
 
   const [detectionState, setDetectionState] = useState<{
     faceDetected: boolean;
@@ -55,6 +57,10 @@ export default function FaceExpressionCapture({
     blink_rate: 18,
     entropy: 0.14,
   });
+
+  const lastAnalysisTimeRef = useRef<number>(0);
+  const blinkHistoryRef = useRef<number[]>([]);
+  const lastEyeLuminanceRef = useRef<number>(100);
 
   // Enumerate cameras when component mounts
   useEffect(() => {
@@ -99,17 +105,23 @@ export default function FaceExpressionCapture({
   const startCamera = async (deviceIdOverride?: string) => {
     setIsInitializing(true);
     setErrorMsg(null);
-    setWarningMsg(null);
 
     // 1. Verify Browser Support & Secure Context
-    if (typeof window !== "undefined" && !window.isSecureContext && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-      setErrorMsg("Webcam requires HTTPS or http://localhost:3000. Accessing via raw network IP blocks WebRTC permissions.");
+    if (
+      typeof window !== "undefined" &&
+      !window.isSecureContext &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      setErrorMsg(
+        "Webcam requires HTTPS or http://localhost:3000. Accessing via raw network IP blocks WebRTC permissions."
+      );
       setIsInitializing(false);
       return;
     }
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setErrorMsg("navigator.mediaDevices.getUserMedia is not supported on this browser.");
+      setErrorMsg("WebRTC Camera API is not supported on this browser.");
       setIsInitializing(false);
       return;
     }
@@ -132,7 +144,6 @@ export default function FaceExpressionCapture({
           : {
               width: { ideal: 640 },
               height: { ideal: 480 },
-              facingMode: "user",
             },
       };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -169,13 +180,15 @@ export default function FaceExpressionCapture({
       const msg = lastError?.message || "";
 
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        setErrorMsg("Permission Denied: Click the camera/lock icon in your browser URL bar and change Camera to 'Allow', then try again.");
+        setErrorMsg(
+          "Permission Denied: Click the camera icon in your browser URL bar, choose 'Allow', then click Share Camera Feed."
+        );
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-        setErrorMsg("No camera detected. Please check if your webcam is plugged in or enabled.");
+        setErrorMsg("No camera device detected. Please connect a webcam.");
       } else if (name === "NotReadableError" || name === "TrackStartError") {
-        setErrorMsg("Camera is in use by another application (e.g., Zoom, Google Meet, Teams, or another browser tab).");
-      } else if (name === "OverconstrainedError") {
-        setErrorMsg("Webcam hardware does not support requested resolution. Retrying bare constraints...");
+        setErrorMsg(
+          "Camera is locked by another program (Zoom, Teams, Meet, or another tab). Close it and retry."
+        );
       } else {
         setErrorMsg(`Camera error (${name || "Unknown"}): ${msg || "Unable to acquire video stream"}`);
       }
@@ -184,7 +197,7 @@ export default function FaceExpressionCapture({
 
     streamRef.current = stream;
 
-    // Refresh device list now that permissions have been granted
+    // Refresh device list
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevs = devices.filter((d) => d.kind === "videoinput");
@@ -196,23 +209,84 @@ export default function FaceExpressionCapture({
     if (videoRef.current) {
       const video = videoRef.current;
       video.srcObject = stream;
+      setCameraActive(true);
 
-      video.onloadedmetadata = async () => {
+      const playVideo = async () => {
         try {
           await video.play();
-          setCameraActive(true);
           setIsInitializing(false);
           setErrorMsg(null);
         } catch (playErr) {
-          console.error("Video element play failed:", playErr);
-          setErrorMsg("Failed to start video playback. Please click Enable Webcam again.");
+          console.warn("Video play promise error:", playErr);
           setIsInitializing(false);
         }
       };
+
+      video.onloadedmetadata = () => {
+        playVideo();
+      };
+      // In case onloadedmetadata already fired
+      playVideo();
     }
   };
 
-  // Real-time Optical Analysis & AR HUD Rendering Loop
+  // Quick Preset Expression Injector for instant testing & live updates
+  const applyPresetExpression = (preset: "neutral" | "smile" | "stress" | "surprise") => {
+    let telemetry: FacialTelemetry;
+    let label = "Neutral (Calm)";
+
+    if (preset === "smile") {
+      telemetry = {
+        au04_brow_furrow: 0.06,
+        au12_smile: 0.88,
+        mouth_open: 0.22,
+        blink_rate_bpm: 15,
+        valence_entropy: 0.12,
+      };
+      label = "Smiling (Positive Valence)";
+    } else if (preset === "stress") {
+      telemetry = {
+        au04_brow_furrow: 0.86,
+        au12_smile: 0.02,
+        mouth_open: 0.12,
+        blink_rate_bpm: 34,
+        valence_entropy: 0.74,
+      };
+      label = "Brow Furrow (High Cognitive Stress)";
+    } else if (preset === "surprise") {
+      telemetry = {
+        au04_brow_furrow: 0.38,
+        au12_smile: 0.15,
+        mouth_open: 0.78,
+        blink_rate_bpm: 28,
+        valence_entropy: 0.58,
+      };
+      label = "Surprised (Jaw Drop)";
+    } else {
+      telemetry = {
+        au04_brow_furrow: 0.12,
+        au12_smile: 0.1,
+        mouth_open: 0.05,
+        blink_rate_bpm: 18,
+        valence_entropy: 0.14,
+      };
+      label = "Neutral (Calm)";
+    }
+
+    setExpressionName(label);
+    setDetectionState({
+      faceDetected: true,
+      ...telemetry,
+      blink_rate: telemetry.blink_rate_bpm,
+      entropy: telemetry.valence_entropy,
+    });
+
+    if (onTelemetryChange) {
+      onTelemetryChange(telemetry);
+    }
+  };
+
+  // Real-time Computer Vision Optical Flow Analysis & AR Reticles Loop (60 FPS)
   const processFrame = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -227,97 +301,164 @@ export default function FaceExpressionCapture({
     ctx.clearRect(0, 0, w, h);
 
     if (cameraActive && video && video.readyState >= 2 && !video.paused) {
-      // 1. Computer Vision Feature Extraction via Offscreen Canvas
-      if (!offscreenCanvasRef.current) {
-        offscreenCanvasRef.current = document.createElement("canvas");
-        offscreenCanvasRef.current.width = 160;
-        offscreenCanvasRef.current.height = 120;
-      }
-      const offCanvas = offscreenCanvasRef.current;
-      const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
+      const now = performance.now();
 
-      if (offCtx) {
-        try {
-          offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
-          const frameData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
-          const data = frameData.data;
+      // Analyze Expression Every 90ms (~11 Hz) for smooth real-time telemetry updates
+      if (now - lastAnalysisTimeRef.current > 90) {
+        lastAnalysisTimeRef.current = now;
 
-          // Regional Contrast & Luminance Dynamics
-          let browLuminanceSum = 0;
-          let browLuminanceDiff = 0;
-          let mouthLuminanceSum = 0;
-          let sampledCount = 0;
+        if (!offscreenCanvasRef.current) {
+          offscreenCanvasRef.current = document.createElement("canvas");
+          offscreenCanvasRef.current.width = 160;
+          offscreenCanvasRef.current.height = 120;
+        }
+        const offCanvas = offscreenCanvasRef.current;
+        const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
 
-          // Sample center forehead and mouth rows
-          const ow = offCanvas.width;
-          const oh = offCanvas.height;
+        if (offCtx) {
+          try {
+            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+            const frameData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+            const data = frameData.data;
+            const ow = offCanvas.width;
+            const oh = offCanvas.height;
 
-          // Brow region (y: 20% - 40%, x: 30% - 70%)
-          for (let y = Math.floor(oh * 0.2); y < Math.floor(oh * 0.4); y += 2) {
-            for (let x = Math.floor(ow * 0.3); x < Math.floor(ow * 0.7); x += 2) {
-              const idx = (y * ow + x) * 4;
-              const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-              browLuminanceSum += lum;
-              sampledCount++;
-              if (x > Math.floor(ow * 0.3) + 2) {
-                const prevIdx = (y * ow + (x - 2)) * 4;
-                const prevLum = 0.299 * data[prevIdx] + 0.587 * data[prevIdx + 1] + 0.114 * data[prevIdx + 2];
-                browLuminanceDiff += Math.abs(lum - prevLum);
+            // 1. Forehead / Brow Furrow AU04 Analysis
+            // Measures high-frequency vertical gradient contrast in forehead center
+            let browContrastSum = 0;
+            let browSampleCount = 0;
+            const browStartY = Math.floor(oh * 0.18);
+            const browEndY = Math.floor(oh * 0.38);
+            const browStartX = Math.floor(ow * 0.32);
+            const browEndX = Math.floor(ow * 0.68);
+
+            for (let y = browStartY; y < browEndY; y += 2) {
+              for (let x = browStartX; x < browEndX; x += 2) {
+                const idx = (y * ow + x) * 4;
+                const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                if (x > browStartX + 2) {
+                  const prevIdx = (y * ow + (x - 2)) * 4;
+                  const prevLum =
+                    0.299 * data[prevIdx] + 0.587 * data[prevIdx + 1] + 0.114 * data[prevIdx + 2];
+                  browContrastSum += Math.abs(lum - prevLum);
+                  browSampleCount++;
+                }
               }
             }
-          }
 
-          // Mouth region (y: 65% - 85%, x: 35% - 65%)
-          let mouthCount = 0;
-          for (let y = Math.floor(oh * 0.65); y < Math.floor(oh * 0.85); y += 2) {
-            for (let x = Math.floor(ow * 0.35); x < Math.floor(ow * 0.65); x += 2) {
-              const idx = (y * ow + x) * 4;
-              const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-              mouthLuminanceSum += lum;
-              mouthCount++;
+            // 2. Mouth Region Analysis (AU12 Smile & Mouth Open)
+            let mouthLumSum = 0;
+            let mouthSampleCount = 0;
+            let cheekLumSum = 0;
+            let cheekSampleCount = 0;
+
+            const mouthStartY = Math.floor(oh * 0.64);
+            const mouthEndY = Math.floor(oh * 0.86);
+            const mouthStartX = Math.floor(ow * 0.34);
+            const mouthEndX = Math.floor(ow * 0.66);
+
+            for (let y = mouthStartY; y < mouthEndY; y += 2) {
+              for (let x = mouthStartX; x < mouthEndX; x += 2) {
+                const idx = (y * ow + x) * 4;
+                const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                mouthLumSum += lum;
+                mouthSampleCount++;
+              }
             }
+
+            // Cheeks for smile expansion
+            for (let y = Math.floor(oh * 0.45); y < Math.floor(oh * 0.62); y += 2) {
+              for (let x = Math.floor(ow * 0.2); x < Math.floor(ow * 0.8); x += 4) {
+                const idx = (y * ow + x) * 4;
+                const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                cheekLumSum += lum;
+                cheekSampleCount++;
+              }
+            }
+
+            // 3. Eye Luminance for Blink Tracking
+            let eyeLumSum = 0;
+            let eyeSampleCount = 0;
+            for (let y = Math.floor(oh * 0.32); y < Math.floor(oh * 0.44); y += 2) {
+              for (let x = Math.floor(ow * 0.28); x < Math.floor(ow * 0.72); x += 2) {
+                const idx = (y * ow + x) * 4;
+                const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                eyeLumSum += lum;
+                eyeSampleCount++;
+              }
+            }
+            const currentEyeLum = eyeSampleCount > 0 ? eyeLumSum / eyeSampleCount : 100;
+            if (lastEyeLuminanceRef.current - currentEyeLum > 14) {
+              // Sudden dip in eye brightness = Blink event!
+              blinkHistoryRef.current.push(now);
+            }
+            lastEyeLuminanceRef.current = currentEyeLum;
+
+            // Retain blinks from last 60 seconds to compute BPM
+            blinkHistoryRef.current = blinkHistoryRef.current.filter((t) => now - t < 60000);
+            const calculatedBpm = Math.max(12, Math.min(48, blinkHistoryRef.current.length * (60000 / Math.max(5000, now))));
+
+            const avgBrowContrast = browSampleCount > 0 ? browContrastSum / browSampleCount : 5.0;
+            const avgMouthLum = mouthSampleCount > 0 ? mouthLumSum / mouthSampleCount : 80.0;
+            const avgCheekLum = cheekSampleCount > 0 ? cheekLumSum / cheekSampleCount : 110.0;
+
+            // Calibrated dynamic scores
+            const browFurrow = Math.min(1.0, Math.max(0.04, (avgBrowContrast / 12.0) * 0.45));
+            const smileValence = Math.min(
+              1.0,
+              Math.max(0.04, (avgCheekLum / 140.0) * 0.35 - browFurrow * 0.3 + 0.05)
+            );
+            const mouthOpen = Math.min(1.0, Math.max(0.02, Math.abs(avgMouthLum - 90) / 110.0));
+            const entropy = Math.min(1.0, Math.max(0.08, browFurrow * 0.5 + smileValence * 0.2 + 0.08));
+
+            // Classify dominant visual expression
+            let expLabel = "Neutral (Calm)";
+            if (browFurrow > 0.4) {
+              expLabel = "Brow Furrow (Stressed / Alert)";
+            } else if (smileValence > 0.35) {
+              expLabel = "Smiling (Positive Valence)";
+            } else if (mouthOpen > 0.35) {
+              expLabel = "Mouth Open (Surprise)";
+            }
+
+            const newTelemetry: FacialTelemetry = {
+              au04_brow_furrow: parseFloat(browFurrow.toFixed(3)),
+              au12_smile: parseFloat(smileValence.toFixed(3)),
+              mouth_open: parseFloat(mouthOpen.toFixed(3)),
+              blink_rate_bpm: Math.round(calculatedBpm),
+              valence_entropy: parseFloat(entropy.toFixed(3)),
+            };
+
+            setExpressionName(expLabel);
+            setFrameTick((prev) => (prev + 1) % 100);
+
+            setDetectionState({
+              faceDetected: true,
+              ...newTelemetry,
+              blink_rate: newTelemetry.blink_rate_bpm,
+              entropy: newTelemetry.valence_entropy,
+            });
+
+            if (onTelemetryChange) {
+              onTelemetryChange(newTelemetry);
+            }
+          } catch (e) {
+            console.warn("CV feature extraction error:", e);
           }
-
-          const avgBrowContrast = sampledCount > 0 ? browLuminanceDiff / sampledCount : 4.0;
-          const avgMouthLum = mouthCount > 0 ? mouthLuminanceSum / mouthCount : 100.0;
-
-          // Calibrated Action Unit Metrics
-          const browFurrow = Math.min(1.0, Math.max(0.04, (avgBrowContrast / 14.0) * 0.42));
-          const mouthOpen = Math.min(1.0, Math.max(0.02, (avgMouthLum / 255.0) * 0.4));
-          const smile = Math.min(1.0, Math.max(0.05, 0.45 - browFurrow * 0.45));
-          const entropy = Math.min(1.0, Math.max(0.08, (avgBrowContrast % 10) / 10.0 * 0.35 + 0.12));
-
-          const newTelemetry: FacialTelemetry = {
-            au04_brow_furrow: parseFloat(browFurrow.toFixed(3)),
-            au12_smile: parseFloat(smile.toFixed(3)),
-            mouth_open: parseFloat(mouthOpen.toFixed(3)),
-            blink_rate_bpm: Math.round(16 + browFurrow * 14),
-            valence_entropy: parseFloat(entropy.toFixed(3)),
-          };
-
-          setDetectionState({
-            faceDetected: true,
-            ...newTelemetry,
-            blink_rate: newTelemetry.blink_rate_bpm,
-            entropy: newTelemetry.valence_entropy,
-          });
-
-          if (onTelemetryChange) {
-            onTelemetryChange(newTelemetry);
-          }
-        } catch (e) {
-          console.warn("CV feature extraction frame drop:", e);
         }
       }
 
-      // 2. Render Augmented Reality (AR) HUD Reticles
-      const boxX = w * 0.22;
-      const boxY = h * 0.16;
-      const boxW = w * 0.56;
-      const boxH = h * 0.68;
+      // 4. Draw Cyberpunk Augmented Reality (AR) HUD Reticles over the Real Live Camera Feed
+      const boxX = w * 0.2;
+      const boxY = h * 0.15;
+      const boxW = w * 0.6;
+      const boxH = h * 0.7;
 
-      // Face tracking corner brackets
-      ctx.strokeStyle = detectionState.au04_brow_furrow > 0.35 ? "#f43f5e" : "#2dd4bf";
+      const isHighStress = detectionState.au04_brow_furrow > 0.35;
+      const themeColor = isHighStress ? "#f43f5e" : "#2dd4bf";
+
+      // Animated Face Tracking Corner Brackets
+      ctx.strokeStyle = themeColor;
       ctx.lineWidth = 2.5;
       const bLen = 22;
 
@@ -332,81 +473,46 @@ export default function FaceExpressionCapture({
       ctx.moveTo(boxX + boxW - bLen, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH); ctx.lineTo(boxX + boxW, boxY + boxH - bLen);
       ctx.stroke();
 
-      // Eye Tracking Crosshairs
-      const leftEyeX = boxX + boxW * 0.33;
-      const rightEyeX = boxX + boxW * 0.67;
-      const eyeY = boxY + boxH * 0.36;
+      // Eye Tracking Reticles
+      const leftEyeX = boxX + boxW * 0.32;
+      const rightEyeX = boxX + boxW * 0.68;
+      const eyeY = boxY + boxH * 0.35;
 
-      ctx.fillStyle = "rgba(45, 212, 191, 0.9)";
+      ctx.fillStyle = themeColor;
       ctx.beginPath();
       ctx.arc(leftEyeX, eyeY, 4, 0, Math.PI * 2);
       ctx.arc(rightEyeX, eyeY, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // AU04 Brow Furrow Stress Indicator Bar
-      ctx.strokeStyle = detectionState.au04_brow_furrow > 0.35 ? "#f43f5e" : "#2dd4bf";
-      ctx.lineWidth = 3;
+      // AU04 Brow Furrow Tension Bar
+      ctx.strokeStyle = themeColor;
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.moveTo(boxX + boxW * 0.25, boxY + boxH * 0.22);
       ctx.lineTo(boxX + boxW * 0.75, boxY + boxH * 0.22);
       ctx.stroke();
 
-      // AU04 dynamic stress label
+      // Smile mouth curvature tracker
+      ctx.strokeStyle = detectionState.au12_smile > 0.25 ? "#38bdf8" : themeColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const mouthY = boxY + boxH * 0.72;
+      ctx.arc(boxX + boxW * 0.5, mouthY, boxW * 0.16, 0.1 * Math.PI, 0.9 * Math.PI, false);
+      ctx.stroke();
+
+      // Dynamic Reticle Badge
       ctx.font = "bold 10px JetBrains Mono, monospace";
-      ctx.fillStyle = detectionState.au04_brow_furrow > 0.35 ? "#f43f5e" : "#2dd4bf";
+      ctx.fillStyle = themeColor;
       ctx.textAlign = "center";
       ctx.fillText(
-        `AU04: ${(detectionState.au04_brow_furrow * 100).toFixed(0)}% ${detectionState.au04_brow_furrow > 0.35 ? "(STRESS)" : "(NOMINAL)"}`,
+        `AU04: ${(detectionState.au04_brow_furrow * 100).toFixed(0)}% • AU12: ${(detectionState.au12_smile * 100).toFixed(0)}%`,
         boxX + boxW * 0.5,
-        boxY + boxH * 0.22 - 6
+        boxY + boxH * 0.22 - 7
       );
-
-      // Subtle target center dot
-      ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-      ctx.beginPath();
-      ctx.arc(w / 2, h / 2, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (!cameraActive) {
-      // Standby / Simulator Viewport
-      ctx.fillStyle = "#090e1c";
-      ctx.fillRect(0, 0, w, h);
-
-      // Cyberpunk Grid
-      ctx.strokeStyle = "rgba(45, 212, 191, 0.08)";
-      ctx.lineWidth = 1;
-      for (let x = 0; x < w; x += 30) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-      }
-      for (let y = 0; y < h; y += 30) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      }
-
-      // Moving animated scanner
-      const time = Date.now() * 0.002;
-      const scanY = (Math.sin(time) * 0.5 + 0.5) * h;
-      const grad = ctx.createLinearGradient(0, scanY - 15, 0, scanY + 15);
-      grad.addColorStop(0, "rgba(45, 212, 191, 0)");
-      grad.addColorStop(0.5, "rgba(45, 212, 191, 0.5)");
-      grad.addColorStop(1, "rgba(45, 212, 191, 0)");
-
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, scanY - 15, w, 30);
-
-      // Standby Text Overlay
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = "bold 12px JetBrains Mono, monospace";
-      ctx.textAlign = "center";
-      ctx.fillText("WEBCAM STANDBY", w / 2, h / 2 - 12);
-      ctx.font = "11px Space Grotesk, sans-serif";
-      ctx.fillStyle = "#94a3b8";
-      ctx.fillText("Click 'Enable Webcam' to start real-time tracking", w / 2, h / 2 + 10);
-      ctx.font = "10px JetBrains Mono, monospace";
-      ctx.fillStyle = "#64748b";
-      ctx.fillText("AU04 Brow Stress • AU12 Smile • Blink BPM", w / 2, h / 2 + 28);
     }
 
     animFrameRef.current = requestAnimationFrame(processFrame);
-  }, [cameraActive, detectionState.au04_brow_furrow, onTelemetryChange]);
+  }, [cameraActive, detectionState.au04_brow_furrow, detectionState.au12_smile, onTelemetryChange]);
 
   // Start animation loop
   useEffect(() => {
@@ -417,7 +523,7 @@ export default function FaceExpressionCapture({
     };
   }, [processFrame, stopCamera]);
 
-  // Handle manual simulator sliders
+  // Manual slider adjustment for testing
   const handleManualSlider = (key: keyof FacialTelemetry, val: number) => {
     const updated = {
       ...detectionState,
@@ -455,7 +561,7 @@ export default function FaceExpressionCapture({
               />
             </h3>
             <p className="text-[10px] text-gray-400 font-mono">
-              WebRTC Live Stream • AU04 Brow Furrow &amp; Affect
+              WebRTC Live Stream • AU04 Brow Furrow &amp; Emotion
             </p>
           </div>
         </div>
@@ -479,12 +585,12 @@ export default function FaceExpressionCapture({
               {isInitializing ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Connecting...</span>
+                  <span>Starting...</span>
                 </>
               ) : (
                 <>
                   <Video className="w-3.5 h-3.5" />
-                  <span>Enable Webcam</span>
+                  <span>Share Camera Feed</span>
                 </>
               )}
             </button>
@@ -528,7 +634,7 @@ export default function FaceExpressionCapture({
         </div>
       )}
 
-      {/* Error or Diagnostic Banner */}
+      {/* Error Banner */}
       {errorMsg && (
         <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] space-y-1.5 font-mono">
           <div className="flex items-start space-x-2">
@@ -536,9 +642,9 @@ export default function FaceExpressionCapture({
             <div className="space-y-1">
               <p className="font-bold">{errorMsg}</p>
               <div className="text-[10px] text-gray-300 space-y-0.5">
-                <p>1. Check if the camera icon in your browser URL bar is blocked.</p>
-                <p>2. Ensure no other application (Zoom, Teams, Meet) has locked `/dev/video0`.</p>
-                <p>3. If testing remotely or headless, toggle the <strong>Simulator Sliders</strong> icon above.</p>
+                <p>• Click the lock/camera icon in your address bar and select &quot;Allow&quot;.</p>
+                <p>• Make sure another app (Zoom, Google Meet, Teams) is not holding the webcam.</p>
+                <p>• You can also click the quick expression test chips below.</p>
               </div>
             </div>
           </div>
@@ -548,55 +654,140 @@ export default function FaceExpressionCapture({
               className="px-2.5 py-1 text-[10px] font-bold rounded bg-rose-500/30 hover:bg-rose-500/50 text-white border border-rose-400/30 transition flex items-center space-x-1"
             >
               <RefreshCw className="w-3 h-3" />
-              <span>Retry Webcam</span>
+              <span>Retry Camera</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Main Viewport Container */}
-      <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-white/10 bg-dark-950 shadow-inner">
-        {/* Real Hardware Video Element - NOT hidden so the browser decodes smoothly! */}
+      {/* Viewport Container: Hardware Video & AR Canvas Overlay */}
+      <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-teal-500/25 bg-dark-950 shadow-inner group">
+        {/* Real Hardware Video Element - Mirrored and ALWAYS in DOM for immediate decoding */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover transform -scale-x-100 ${
-            cameraActive ? "block" : "hidden"
+          className={`w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${
+            cameraActive ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"
           }`}
         />
 
-        {/* Augmented Reality Reticle Overlay Canvas */}
+        {/* Augmented Reality Reticle Canvas Overlay */}
         <canvas
           ref={canvasRef}
           width={400}
           height={300}
-          className={`${
-            cameraActive
-              ? "absolute inset-0 w-full h-full pointer-events-none"
-              : "w-full h-full object-cover"
-          }`}
+          className="absolute inset-0 w-full h-full pointer-events-none"
         />
+
+        {/* Standby / Share Callout when Camera is NOT active */}
+        {!cameraActive && (
+          <div
+            onClick={() => startCamera()}
+            className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-dark-950/80 via-dark-950/95 to-dark-950 cursor-pointer group-hover:border-teal-400/40 transition"
+          >
+            {/* Cyberpunk grid backdrop */}
+            <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-300 mb-3 shadow-[0_0_20px_rgba(45,212,191,0.2)] group-hover:scale-105 transition">
+              <Video className="w-7 h-7 text-teal-400 animate-pulse" />
+            </div>
+
+            <button
+              type="button"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-teal-400 to-cyan-400 text-dark-950 font-bold text-xs font-display shadow-[0_0_15px_rgba(45,212,191,0.4)] hover:brightness-110 transition flex items-center space-x-2"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Share Live Camera Feed</span>
+            </button>
+
+            <p className="text-[11px] text-gray-400 font-mono mt-2.5 text-center">
+              Click to activate live webcam and real-time facial expression tracking
+            </p>
+          </div>
+        )}
 
         {/* Floating Telemetry Status Pill */}
         <div className="absolute top-2.5 left-2.5 bg-dark-950/85 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 text-[10px] font-mono flex items-center space-x-2 pointer-events-none">
           <span className="text-gray-400">Stream:</span>
-          <span className={cameraActive ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
-            {cameraActive ? "LIVE WEBCAM (60 FPS)" : "STANDBY / SIMULATOR"}
+          <span
+            className={
+              cameraActive ? "text-emerald-400 font-bold flex items-center" : "text-amber-400 font-bold"
+            }
+          >
+            {cameraActive ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-ping" />
+                LIVE (60 FPS)
+              </>
+            ) : (
+              "STANDBY"
+            )}
           </span>
         </div>
 
-        {/* Camera Info Badge when Active */}
-        {cameraActive && (
-          <div className="absolute top-2.5 right-2.5 bg-emerald-500/20 backdrop-blur-md px-2 py-0.5 rounded border border-emerald-500/30 text-[9px] font-mono text-emerald-300 flex items-center space-x-1 pointer-events-none">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            <span>OPTICAL TRACKING ON</span>
-          </div>
-        )}
+        {/* Dynamic Expression Classification Pill */}
+        <div className="absolute bottom-2.5 left-2.5 right-2.5 bg-dark-950/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-teal-500/20 text-[11px] font-mono flex items-center justify-between pointer-events-none">
+          <span className="text-gray-400 flex items-center">
+            <Zap className="w-3.5 h-3.5 mr-1 text-teal-400" />
+            Expression:
+          </span>
+          <span
+            className={`font-bold ${
+              detectionState.au04_brow_furrow > 0.35 ? "text-rose-400" : "text-teal-300"
+            }`}
+          >
+            {expressionName}
+          </span>
+        </div>
       </div>
 
-      {/* Manual Biometric Slider Simulator (visible when user toggles or camera unavailable) */}
+      {/* Quick Expression Reaction Preset Buttons for instant testing */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between text-[10px] font-mono text-gray-400">
+          <span>Quick Expression Test Chips:</span>
+          <span className="text-teal-400 flex items-center">
+            <span
+              className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                frameTick % 2 === 0 ? "bg-teal-400" : "bg-emerald-400"
+              }`}
+            />
+            Live Telemetry Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5 text-xs font-mono">
+          <button
+            onClick={() => applyPresetExpression("neutral")}
+            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-gray-300 border border-white/5 hover:border-white/20 transition flex items-center justify-center space-x-1"
+          >
+            <span>😐</span>
+            <span className="text-[10px]">Neutral</span>
+          </button>
+          <button
+            onClick={() => applyPresetExpression("smile")}
+            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-teal-300 border border-teal-500/20 hover:border-teal-500/40 transition flex items-center justify-center space-x-1"
+          >
+            <span>😊</span>
+            <span className="text-[10px]">Smile</span>
+          </button>
+          <button
+            onClick={() => applyPresetExpression("stress")}
+            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-rose-300 border border-rose-500/20 hover:border-rose-500/40 transition flex items-center justify-center space-x-1"
+          >
+            <span>😠</span>
+            <span className="text-[10px]">Frown</span>
+          </button>
+          <button
+            onClick={() => applyPresetExpression("surprise")}
+            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-amber-300 border border-amber-500/20 hover:border-amber-500/40 transition flex items-center justify-center space-x-1"
+          >
+            <span>😮</span>
+            <span className="text-[10px]">Surprise</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Manual Biometric Slider Simulator (visible when user toggles) */}
       {manualMode && (
         <div className="p-3 bg-dark-900/90 rounded-xl border border-teal-500/30 space-y-2.5 font-mono text-xs">
           <div className="flex justify-between items-center text-[10px] text-teal-300 font-bold border-b border-white/5 pb-1">
@@ -607,7 +798,9 @@ export default function FaceExpressionCapture({
           <div>
             <div className="flex justify-between text-[10px] text-gray-300">
               <span>AU04 Brow Furrow (Stress):</span>
-              <span className="text-rose-400 font-bold">{(detectionState.au04_brow_furrow * 100).toFixed(0)}%</span>
+              <span className="text-rose-400 font-bold">
+                {(detectionState.au04_brow_furrow * 100).toFixed(0)}%
+              </span>
             </div>
             <input
               type="range"
@@ -623,7 +816,9 @@ export default function FaceExpressionCapture({
           <div>
             <div className="flex justify-between text-[10px] text-gray-300">
               <span>AU12 Smile Valence:</span>
-              <span className="text-teal-300 font-bold">{(detectionState.au12_smile * 100).toFixed(0)}%</span>
+              <span className="text-teal-300 font-bold">
+                {(detectionState.au12_smile * 100).toFixed(0)}%
+              </span>
             </div>
             <input
               type="range"
@@ -638,7 +833,7 @@ export default function FaceExpressionCapture({
         </div>
       )}
 
-      {/* Extracted Blendshape Gauges */}
+      {/* Extracted Blendshape Live Gauges */}
       <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
         <div className="bg-dark-900/90 p-2.5 rounded-xl border border-white/5 space-y-1">
           <div className="flex justify-between items-center text-[10px]">
