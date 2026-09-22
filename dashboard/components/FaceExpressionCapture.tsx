@@ -37,6 +37,10 @@ export default function FaceExpressionCapture({
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const cameraActiveRef = useRef<boolean>(false);
+  const onTelemetryChangeRef = useRef(onTelemetryChange);
+  onTelemetryChangeRef.current = onTelemetryChange;
+
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -61,6 +65,9 @@ export default function FaceExpressionCapture({
     blink_rate: 18,
     entropy: 0.14,
   });
+
+  const detectionStateRef = useRef(detectionState);
+  detectionStateRef.current = detectionState;
 
   const lastAnalysisTimeRef = useRef<number>(0);
   const blinkHistoryRef = useRef<number[]>([]);
@@ -88,6 +95,10 @@ export default function FaceExpressionCapture({
 
   // Clean stop of camera tracks
   const stopCamera = useCallback(() => {
+    cameraActiveRef.current = false;
+    setCameraActive(false);
+    setIsInitializing(false);
+
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("cobot_camera_enabled");
     }
@@ -104,19 +115,16 @@ export default function FaceExpressionCapture({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    setCameraActive(false);
-    setIsInitializing(false);
   }, []);
 
-  // Auto-start camera if requested or previously enabled in session
+  // ONLY stop camera on component unmount
   useEffect(() => {
-    const isPreviouslyEnabled =
-      typeof window !== "undefined" && sessionStorage.getItem("cobot_camera_enabled") === "true";
-    if (autoStart || isPreviouslyEnabled) {
-      startCamera();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
+  // Robust Multi-Stage Camera Starter with Progressive Fallback
   const startCamera = async (deviceIdOverride?: string) => {
     setIsInitializing(true);
     setErrorMsg(null);
@@ -141,7 +149,11 @@ export default function FaceExpressionCapture({
       return;
     }
 
-    stopCamera();
+    // Stop existing stream if switching device
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
 
     const devId = deviceIdOverride || selectedDeviceId;
     let stream: MediaStream | null = null;
@@ -167,7 +179,7 @@ export default function FaceExpressionCapture({
       console.warn("Stage 1 camera request failed, trying Stage 2 fallback:", err1);
     }
 
-    // Stage 2: Fallback without facingMode/resolution constraints
+    // Stage 2: Fallback without explicit device/resolution constraints
     if (!stream) {
       try {
         const fallbackConstraints: MediaStreamConstraints = devId
@@ -180,7 +192,7 @@ export default function FaceExpressionCapture({
       }
     }
 
-    // Stage 3: Bare minimum { video: true }
+    // Stage 3: Universal bare minimum { video: true }
     if (!stream) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -196,7 +208,7 @@ export default function FaceExpressionCapture({
 
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
         setErrorMsg(
-          "Permission Denied: Click the camera icon in your browser URL bar, choose 'Allow', then click Share Camera Feed."
+          "Permission Denied: Click the camera icon in your browser URL bar, select 'Allow', then click Share Camera Feed."
         );
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
         setErrorMsg("No camera device detected. Please connect a webcam.");
@@ -211,6 +223,10 @@ export default function FaceExpressionCapture({
     }
 
     streamRef.current = stream;
+    cameraActiveRef.current = true;
+    setCameraActive(true);
+    setIsInitializing(false);
+
     if (typeof window !== "undefined") {
       sessionStorage.setItem("cobot_camera_enabled", "true");
     }
@@ -227,26 +243,23 @@ export default function FaceExpressionCapture({
     if (videoRef.current) {
       const video = videoRef.current;
       video.srcObject = stream;
-      setCameraActive(true);
-
-      const playVideo = async () => {
-        try {
-          await video.play();
-          setIsInitializing(false);
-          setErrorMsg(null);
-        } catch (playErr) {
-          console.warn("Video play promise error:", playErr);
-          setIsInitializing(false);
-        }
-      };
-
-      video.onloadedmetadata = () => {
-        playVideo();
-      };
-      // In case onloadedmetadata already fired
-      playVideo();
+      try {
+        await video.play();
+      } catch (playErr) {
+        console.warn("Video play error:", playErr);
+      }
     }
   };
+
+  // Auto-start camera if requested or previously enabled in session
+  useEffect(() => {
+    const isPreviouslyEnabled =
+      typeof window !== "undefined" && sessionStorage.getItem("cobot_camera_enabled") === "true";
+    if (autoStart || isPreviouslyEnabled) {
+      startCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   // Quick Preset Expression Injector for instant testing & live updates
   const applyPresetExpression = (preset: "neutral" | "smile" | "stress" | "surprise") => {
@@ -292,15 +305,17 @@ export default function FaceExpressionCapture({
     }
 
     setExpressionName(label);
-    setDetectionState({
+    const updated = {
       faceDetected: true,
       ...telemetry,
       blink_rate: telemetry.blink_rate_bpm,
       entropy: telemetry.valence_entropy,
-    });
+    };
+    detectionStateRef.current = updated;
+    setDetectionState(updated);
 
-    if (onTelemetryChange) {
-      onTelemetryChange(telemetry);
+    if (onTelemetryChangeRef.current) {
+      onTelemetryChangeRef.current(telemetry);
     }
   };
 
@@ -308,9 +323,15 @@ export default function FaceExpressionCapture({
   const processFrame = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      animFrameRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      animFrameRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
 
     const w = canvas.width;
     const h = canvas.height;
@@ -318,7 +339,7 @@ export default function FaceExpressionCapture({
     // Clear previous AR overlay
     ctx.clearRect(0, 0, w, h);
 
-    if (cameraActive && video && video.readyState >= 2 && !video.paused) {
+    if (cameraActiveRef.current && video && video.readyState >= 2 && !video.paused) {
       const now = performance.now();
 
       // Analyze Expression Every 90ms (~11 Hz) for smooth real-time telemetry updates
@@ -342,7 +363,6 @@ export default function FaceExpressionCapture({
             const oh = offCanvas.height;
 
             // 1. Forehead / Brow Furrow AU04 Analysis
-            // Measures high-frequency vertical gradient contrast in forehead center
             let browContrastSum = 0;
             let browSampleCount = 0;
             const browStartY = Math.floor(oh * 0.18);
@@ -407,29 +427,31 @@ export default function FaceExpressionCapture({
             }
             const currentEyeLum = eyeSampleCount > 0 ? eyeLumSum / eyeSampleCount : 100;
             if (lastEyeLuminanceRef.current - currentEyeLum > 14) {
-              // Sudden dip in eye brightness = Blink event!
               blinkHistoryRef.current.push(now);
             }
             lastEyeLuminanceRef.current = currentEyeLum;
 
-            // Retain blinks from last 60 seconds to compute BPM
             blinkHistoryRef.current = blinkHistoryRef.current.filter((t) => now - t < 60000);
-            const calculatedBpm = Math.max(12, Math.min(48, blinkHistoryRef.current.length * (60000 / Math.max(5000, now))));
+            const calculatedBpm = Math.max(
+              12,
+              Math.min(48, blinkHistoryRef.current.length * (60000 / Math.max(5000, now)))
+            );
 
             const avgBrowContrast = browSampleCount > 0 ? browContrastSum / browSampleCount : 5.0;
             const avgMouthLum = mouthSampleCount > 0 ? mouthLumSum / mouthSampleCount : 80.0;
             const avgCheekLum = cheekSampleCount > 0 ? cheekLumSum / cheekSampleCount : 110.0;
 
-            // Calibrated dynamic scores
             const browFurrow = Math.min(1.0, Math.max(0.04, (avgBrowContrast / 12.0) * 0.45));
             const smileValence = Math.min(
               1.0,
               Math.max(0.04, (avgCheekLum / 140.0) * 0.35 - browFurrow * 0.3 + 0.05)
             );
             const mouthOpen = Math.min(1.0, Math.max(0.02, Math.abs(avgMouthLum - 90) / 110.0));
-            const entropy = Math.min(1.0, Math.max(0.08, browFurrow * 0.5 + smileValence * 0.2 + 0.08));
+            const entropy = Math.min(
+              1.0,
+              Math.max(0.08, browFurrow * 0.5 + smileValence * 0.2 + 0.08)
+            );
 
-            // Classify dominant visual expression
             let expLabel = "Neutral (Calm)";
             if (browFurrow > 0.4) {
               expLabel = "Brow Furrow (Stressed / Alert)";
@@ -450,15 +472,17 @@ export default function FaceExpressionCapture({
             setExpressionName(expLabel);
             setFrameTick((prev) => (prev + 1) % 100);
 
-            setDetectionState({
+            const updatedState = {
               faceDetected: true,
               ...newTelemetry,
               blink_rate: newTelemetry.blink_rate_bpm,
               entropy: newTelemetry.valence_entropy,
-            });
+            };
+            detectionStateRef.current = updatedState;
+            setDetectionState(updatedState);
 
-            if (onTelemetryChange) {
-              onTelemetryChange(newTelemetry);
+            if (onTelemetryChangeRef.current) {
+              onTelemetryChangeRef.current(newTelemetry);
             }
           } catch (e) {
             console.warn("CV feature extraction error:", e);
@@ -472,7 +496,9 @@ export default function FaceExpressionCapture({
       const boxW = w * 0.6;
       const boxH = h * 0.7;
 
-      const isHighStress = detectionState.au04_brow_furrow > 0.35;
+      const currentAU04 = detectionStateRef.current.au04_brow_furrow;
+      const currentAU12 = detectionStateRef.current.au12_smile;
+      const isHighStress = currentAU04 > 0.35;
       const themeColor = isHighStress ? "#f43f5e" : "#2dd4bf";
 
       // Animated Face Tracking Corner Brackets
@@ -511,7 +537,7 @@ export default function FaceExpressionCapture({
       ctx.stroke();
 
       // Smile mouth curvature tracker
-      ctx.strokeStyle = detectionState.au12_smile > 0.25 ? "#38bdf8" : themeColor;
+      ctx.strokeStyle = currentAU12 > 0.25 ? "#38bdf8" : themeColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       const mouthY = boxY + boxH * 0.72;
@@ -523,23 +549,22 @@ export default function FaceExpressionCapture({
       ctx.fillStyle = themeColor;
       ctx.textAlign = "center";
       ctx.fillText(
-        `AU04: ${(detectionState.au04_brow_furrow * 100).toFixed(0)}% • AU12: ${(detectionState.au12_smile * 100).toFixed(0)}%`,
+        `AU04: ${(currentAU04 * 100).toFixed(0)}% • AU12: ${(currentAU12 * 100).toFixed(0)}%`,
         boxX + boxW * 0.5,
         boxY + boxH * 0.22 - 7
       );
     }
 
     animFrameRef.current = requestAnimationFrame(processFrame);
-  }, [cameraActive, detectionState.au04_brow_furrow, detectionState.au12_smile, onTelemetryChange]);
+  }, []);
 
-  // Start animation loop
+  // Stable animation loop mounted once
   useEffect(() => {
     animFrameRef.current = requestAnimationFrame(processFrame);
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      stopCamera();
     };
-  }, [processFrame, stopCamera]);
+  }, [processFrame]);
 
   // Manual slider adjustment for testing
   const handleManualSlider = (key: keyof FacialTelemetry, val: number) => {
@@ -547,9 +572,10 @@ export default function FaceExpressionCapture({
       ...detectionState,
       [key]: val,
     };
+    detectionStateRef.current = updated;
     setDetectionState(updated);
-    if (onTelemetryChange) {
-      onTelemetryChange({
+    if (onTelemetryChangeRef.current) {
+      onTelemetryChangeRef.current({
         au04_brow_furrow: updated.au04_brow_furrow,
         au12_smile: updated.au12_smile,
         mouth_open: updated.mouth_open,
