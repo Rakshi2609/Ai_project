@@ -63,15 +63,21 @@ export default function TrustEngineHUD({ inference, loading = false }: TrustEngi
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
               </svg>
-              <span className="absolute text-xs font-black font-mono text-white">{pct}%</span>
+              <span className={`absolute text-xs font-black font-mono text-white ${isUnderTrust ? "animate-pulse text-rose-400" : ""}`}>
+                {pct}%
+              </span>
             </div>
 
             <div>
-              <span className="text-3xl font-black font-mono text-white tracking-tight cyber-glow-teal">
+              <span
+                className={`text-3xl font-black font-mono tracking-tight ${
+                  isUnderTrust ? "text-rose-400 cyber-glow-rose" : "text-white cyber-glow-teal"
+                }`}
+              >
                 {trustScore.toFixed(3)}
               </span>
               <p className={`text-[11px] font-semibold flex items-center mt-0.5 ${stateColor}`}>
-                <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5" />
+                <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-ping" />
                 {isUnderTrust ? "Disuse Risk (Plunging)" : isOverTrust ? "Misuse Risk (Complacent)" : "Optimal Calibrated"}
               </p>
             </div>
