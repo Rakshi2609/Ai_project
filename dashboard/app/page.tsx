@@ -5,6 +5,7 @@ import Cobot3DView from "@/components/Cobot3DView";
 import FaceExpressionCapture from "@/components/FaceExpressionCapture";
 import VoiceCapture from "@/components/VoiceCapture";
 import TrustEngineHUD from "@/components/TrustEngineHUD";
+import TelemetryTimeseriesChart from "@/components/TelemetryTimeseriesChart";
 import { FacialTelemetry, VocalTelemetry, RobotState, InferenceResponse } from "@/types/telemetry";
 import { Sparkles, Play, RotateCcw, AlertTriangle, ShieldCheck } from "lucide-react";
 
@@ -153,17 +154,37 @@ export default function MasterCockpitPage() {
             className="px-3 py-1.5 font-bold rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 transition flex items-center space-x-1.5 shadow-sm"
           >
             <span>😊</span>
-            <span>Smile Mode</span>
+            <span>Calm Mode</span>
           </button>
 
           <button
             onClick={() => {
-              setFacialData({ au04_brow_furrow: 0.88, blink_rate_bpm: 34, au12_smile: 0.02, mouth_open: 0.15, valence_entropy: 0.76 });
+              setFacialData({ au04_brow_furrow: 0.85, blink_rate_bpm: 34, au12_smile: 0.03, mouth_open: 0.16, valence_entropy: 0.74 });
             }}
             className="px-3 py-1.5 font-bold rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center space-x-1.5 shadow-sm"
           >
             <span>😠</span>
-            <span>Stressed Mode</span>
+            <span>Stressed</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setFacialData({ au04_brow_furrow: 0.18, blink_rate_bpm: 38, au12_smile: 0.14, mouth_open: 0.78, valence_entropy: 0.56 });
+            }}
+            className="px-3 py-1.5 font-bold rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition flex items-center space-x-1.5 shadow-sm"
+          >
+            <span>😮</span>
+            <span>Surprised</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setFacialData({ au04_brow_furrow: 0.94, blink_rate_bpm: 28, au12_smile: 0.02, mouth_open: 0.04, valence_entropy: 0.86 });
+            }}
+            className="px-3 py-1.5 font-bold rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition flex items-center space-x-1.5 shadow-sm"
+          >
+            <span>😤</span>
+            <span>Frustrated</span>
           </button>
 
           <button
@@ -209,6 +230,14 @@ export default function MasterCockpitPage() {
         </div>
 
       </div>
+
+      {/* 15-Second Rolling Multi-Parameter Telemetry Timeseries Graph */}
+      <TelemetryTimeseriesChart
+        inference={inference}
+        facialData={facialData}
+        vocalData={vocalData}
+        robotState={robotState}
+      />
     </div>
   );
 }
