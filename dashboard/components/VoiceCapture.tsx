@@ -379,9 +379,28 @@ export default function VoiceCapture({
           </span>
         </div>
 
-        <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5">
-          <span className="text-gray-400 text-[10px] block">Intensity</span>
-          <span className="text-white font-bold text-sm">{audioMetrics.intensity_db} dB</span>
+        <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
+          <div className="flex justify-between items-center text-[10px]">
+            <span className="text-gray-400">Intensity</span>
+            <span className="text-white font-bold">{audioMetrics.intensity_db} dB</span>
+          </div>
+          <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-100 ${
+                audioMetrics.intensity_db > 65
+                  ? "bg-amber-400"
+                  : audioMetrics.intensity_db > 45
+                  ? "bg-teal-400"
+                  : "bg-gray-600"
+              }`}
+              style={{
+                width: `${Math.max(
+                  5,
+                  Math.min(100, ((audioMetrics.intensity_db - 30) / 60) * 100)
+                )}%`,
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
