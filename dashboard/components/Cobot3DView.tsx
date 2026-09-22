@@ -465,6 +465,17 @@ export default function Cobot3DView({
           </span>
         </div>
       </div>
+
+      {/* UR5 6-DOF Joint Angles Ribbon */}
+      <div className="bg-dark-900/60 p-2 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-mono text-gray-400 overflow-x-auto">
+        <span className="text-teal-400 font-bold shrink-0 mr-2">UR5 Joints:</span>
+        <span className="shrink-0 mr-3">J1 (Base): <strong className="text-gray-200">0.0°</strong></span>
+        <span className="shrink-0 mr-3">J2 (Shoulder): <strong className="text-gray-200">{(metrics.drift > 0.1 ? -72.4 : -85.0).toFixed(1)}°</strong></span>
+        <span className="shrink-0 mr-3">J3 (Elbow): <strong className="text-gray-200">{(metrics.drift > 0.1 ? 64.2 : 92.5).toFixed(1)}°</strong></span>
+        <span className="shrink-0 mr-3">J4 (Wrist 1): <strong className="text-gray-200">-90.0°</strong></span>
+        <span className="shrink-0 mr-3">J5 (Wrist 2): <strong className="text-gray-200">0.0°</strong></span>
+        <span className="shrink-0">J6 (Wrist 3): <strong className="text-gray-200">0.0°</strong></span>
+      </div>
     </div>
   );
 }
