@@ -81,3 +81,25 @@ export interface InferenceResponse {
     low_level_control_signal: string;
   };
 }
+
+export interface SupervisorFeedback {
+  session_id: string;
+  task_name: string;
+  supervisor_ground_truth_trust: number;
+  subject_id: string;
+  notes?: string;
+}
+
+export function calculateCognitiveStress(face: FacialTelemetry, voice?: VocalTelemetry): number {
+  const browStress = face.au04_brow_furrow * 50;
+  const entropyStress = face.valence_entropy * 25;
+  const voiceStress = voice ? (voice.acoustic_jitter_pct / 3.0) * 25 : 10;
+  return Math.min(100, Math.round(browStress + entropyStress + voiceStress));
+}
+
+export function classifyTrustZone(trustScore: number): 'UNDER_TRUST' | 'CALIBRATED_TRUST' | 'OVER_TRUST' {
+  if (trustScore < 0.35) return 'UNDER_TRUST';
+  if (trustScore > 0.75) return 'OVER_TRUST';
+  return 'CALIBRATED_TRUST';
+}
+
