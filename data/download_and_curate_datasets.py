@@ -30,26 +30,21 @@ def ensure_directories():
 def generate_facial_affect_dataset(num_samples: int = 1200):
     """
     Curates authentic Facial Affect & Action Unit samples matching AffectNet / FER distributions.
-    Focuses on the 2 core operational modes:
-    - Mode 1: Smile / Calm (AU12 Lip Corner Puller > 0.60, low AU04 brow furrow < 0.15)
-    - Mode 2: Stressed / Brow Furrow (AU04 Brow Lowerer > 0.50, low AU12 < 0.10)
+    Supports 4 distinct affective states:
+    - 0: Smile / Calm (AU12 Lip Corner Puller > 0.60, low AU04 brow furrow < 0.15)
+    - 1: Stressed (AU04 Brow Lowerer > 0.50, low AU12 < 0.10, high blink rate)
+    - 2: Surprised / Startled (AU26 Jaw Drop > 0.55, AU05 Eye Widen, moderate entropy)
+    - 3: Frustrated / Skeptical (Severe AU04 > 0.80, tight lips < 0.10, high entropy > 0.75)
     """
     np.random.seed(42)
     samples = []
     
+    emotion_classes = ["smile_calm", "stressed", "surprised", "frustrated"]
+    
     for i in range(num_samples):
-        # 50% Smile / Calm, 50% Stressed / Brow Furrow
-        is_stressed = (i % 2 == 1)
+        cls = emotion_classes[i % 4]
         
-        if is_stressed:
-            au04_brow_furrow = np.clip(np.random.normal(0.72, 0.12), 0.35, 0.98)
-            au12_smile = np.clip(np.random.normal(0.06, 0.04), 0.01, 0.20)
-            mouth_open = np.clip(np.random.normal(0.18, 0.08), 0.02, 0.55)
-            blink_rate_bpm = float(np.clip(np.random.normal(32, 6), 18, 52))
-            valence_entropy = np.clip(np.random.normal(0.74, 0.10), 0.45, 0.95)
-            label = "stressed"
-            valence = -float(np.clip(np.random.uniform(0.4, 0.9), 0.1, 1.0))
-        else:
+        if cls == "smile_calm":
             au04_brow_furrow = np.clip(np.random.normal(0.08, 0.04), 0.01, 0.22)
             au12_smile = np.clip(np.random.normal(0.78, 0.10), 0.45, 0.98)
             mouth_open = np.clip(np.random.normal(0.10, 0.05), 0.01, 0.35)
@@ -57,6 +52,30 @@ def generate_facial_affect_dataset(num_samples: int = 1200):
             valence_entropy = np.clip(np.random.normal(0.14, 0.05), 0.05, 0.32)
             label = "smile_calm"
             valence = float(np.clip(np.random.uniform(0.5, 0.95), 0.2, 1.0))
+        elif cls == "stressed":
+            au04_brow_furrow = np.clip(np.random.normal(0.72, 0.10), 0.45, 0.95)
+            au12_smile = np.clip(np.random.normal(0.06, 0.04), 0.01, 0.20)
+            mouth_open = np.clip(np.random.normal(0.18, 0.08), 0.02, 0.45)
+            blink_rate_bpm = float(np.clip(np.random.normal(34, 5), 20, 52))
+            valence_entropy = np.clip(np.random.normal(0.72, 0.08), 0.45, 0.92)
+            label = "stressed"
+            valence = -float(np.clip(np.random.uniform(0.35, 0.80), 0.1, 1.0))
+        elif cls == "surprised":
+            au04_brow_furrow = np.clip(np.random.normal(0.18, 0.06), 0.05, 0.35)
+            au12_smile = np.clip(np.random.normal(0.14, 0.06), 0.02, 0.30)
+            mouth_open = np.clip(np.random.normal(0.76, 0.10), 0.52, 0.98) # AU26 Jaw Drop
+            blink_rate_bpm = float(np.clip(np.random.normal(38, 6), 24, 55)) # Eye widen & startle
+            valence_entropy = np.clip(np.random.normal(0.55, 0.08), 0.30, 0.75)
+            label = "surprised"
+            valence = float(np.clip(np.random.uniform(-0.25, 0.25), -0.5, 0.5))
+        else: # frustrated
+            au04_brow_furrow = np.clip(np.random.normal(0.92, 0.06), 0.78, 1.0) # Severe Brow Lowerer
+            au12_smile = np.clip(np.random.normal(0.02, 0.02), 0.0, 0.08)
+            mouth_open = np.clip(np.random.normal(0.05, 0.03), 0.0, 0.14) # Pressed / tight lips
+            blink_rate_bpm = float(np.clip(np.random.normal(28, 5), 18, 44))
+            valence_entropy = np.clip(np.random.normal(0.85, 0.07), 0.65, 0.98)
+            label = "frustrated"
+            valence = -float(np.clip(np.random.uniform(0.65, 0.98), 0.4, 1.0))
 
         # 478 Landmark mesh summary embeddings (mean & std across 6 key facial regions)
         mesh_geom_features = [
