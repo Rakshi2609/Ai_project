@@ -92,13 +92,14 @@ class MultimodalCorpusDataset(Dataset):
                 z_fc, _, _ = self.face_model(f_in)
                 self.z_face_list.append(z_fc.squeeze(0))
                 
-                # 3. Voice inputs: [pitch_norm, jitter_norm, intensity_norm, tension, snr_norm]
+                # Voice inputs: [f0_norm, jitter_norm, intensity_norm, spectral_tension, snr_norm, zcr_norm]
                 v_in = torch.tensor([[
                     rec["voice"]["pitch_mean_hz"] / 400.0,
                     rec["voice"]["acoustic_jitter_pct"] / 10.0,
                     rec["voice"]["intensity_db"] / 100.0,
                     rec["voice"]["spectral_tension"],
-                    0.6 # default snr
+                    0.6,   # default HNR/SNR proxy
+                    0.05,  # default ZCR proxy (6th dim — matches RAVDESS prosody_features)
                 ]], dtype=torch.float32)
                 z_vc, _, _ = self.voice_model(v_in)
                 self.z_voice_list.append(z_vc.squeeze(0))

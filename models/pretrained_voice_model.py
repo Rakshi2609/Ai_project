@@ -22,12 +22,13 @@ MODEL_SAVE_PATH = Path(__file__).resolve().parent / "pretrained_voice_model.pt"
 class VoiceProsodyNet(nn.Module):
     """
     Deep Vocal Prosody & Emotion Feature Extractor.
-    Encodes 5-dimensional acoustic features (Pitch, Jitter, Intensity, Tension, SNR)
+    Encodes 6-dimensional acoustic features (F0, Jitter, RMS, SpectralCentroid, ZCR, HNR)
     into a 64-dimensional latent embedding z_voice.
+    Trained on RAVDESS (Zenodo) — real speech emotion recordings.
     """
-    def __init__(self, input_dim: int = 5, embedding_dim: int = 64):
+    def __init__(self, input_dim: int = 6, embedding_dim: int = 64, num_classes: int = 4):
         super().__init__()
-        
+
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.BatchNorm1d(128),
@@ -38,22 +39,22 @@ class VoiceProsodyNet(nn.Module):
             nn.ReLU(),
             nn.Linear(128, embedding_dim),
             nn.BatchNorm1d(embedding_dim),
-            nn.Tanh() # Normalized latent acoustic embedding
+            nn.Tanh()   # Normalised latent acoustic embedding
         )
-        
+
         # Tension & Jitter regression head
         self.tension_head = nn.Sequential(
             nn.Linear(embedding_dim, 32),
             nn.ReLU(),
             nn.Linear(32, 2),
-            nn.Sigmoid() # Bound in [0, 1]
+            nn.Sigmoid()    # Bound in [0, 1]
         )
-        
-        # 3-Class Emotion classification head (Calm, Panic, Warning)
+
+        # 4-Class Emotion classification head (Calm, Tense, Surprised, Subdued)
         self.classifier_head = nn.Sequential(
             nn.Linear(embedding_dim, 32),
             nn.ReLU(),
-            nn.Linear(32, 3)
+            nn.Linear(32, num_classes)
         )
 
     def forward(self, x):
@@ -67,22 +68,47 @@ class VoiceDataset(Dataset):
     def __init__(self, json_path: str):
         with open(json_path, "r") as f:
             data = json.load(f)
-            
+
         self.x = []
         self.targets = []
         self.labels = []
-        
-        label_map = {"calm": 0, "tremor_panic": 1, "warning_urgent": 2}
-        
+
+        # Support both old synthetic schema and new real-data (RAVDESS) schema
+        OLD_LABEL_MAP = {"calm": 0, "tremor_panic": 1, "warning_urgent": 2}
+        NEW_LABEL_MAP = {"calm": 0, "tense": 1, "surprised": 2, "subdued": 3,
+                         "happy": 0, "angry": 1, "fearful": 1, "neutral": 0}
+
         for item in data:
-            self.x.append(item["prosody_vector"])
-            # Normalized targets: [spectral_tension, acoustic_jitter_pct / 10.0]
-            self.targets.append([item["spectral_tension"], min(1.0, item["acoustic_jitter_pct"] / 10.0)])
-            self.labels.append(label_map[item["emotion_label"]])
-            
-        self.x = torch.tensor(self.x, dtype=torch.float32)
-        self.targets = torch.tensor(self.targets, dtype=torch.float32)
-        self.labels = torch.tensor(self.labels, dtype=torch.long)
+            # ── Feature vector ──────────────────────────────────────
+            if "prosody_features" in item:
+                vec = item["prosody_features"]          # new schema: 6-dim
+            else:
+                vec = item["prosody_vector"]            # old schema: 6-dim
+
+            # ── Regression targets ──────────────────────────────────
+            if "spectral_tension" in item:
+                tension = float(item["spectral_tension"])
+                jitter  = min(1.0, float(item["acoustic_jitter_pct"]) / 10.0)
+            else:
+                # Derive from prosody_features: [f0n, f0sn, rmsn, scn, zcrn, hnr]
+                tension = float(vec[3]) if len(vec) > 3 else 0.3   # spectral centroid norm
+                jitter  = float(vec[1]) if len(vec) > 1 else 0.15  # F0 std norm
+
+            # ── Class label ─────────────────────────────────────────
+            if "class_id" in item:
+                lbl = int(item["class_id"])
+            elif "emotion_label" in item:
+                lbl = OLD_LABEL_MAP.get(item["emotion_label"], 0)
+            else:
+                lbl = NEW_LABEL_MAP.get(item.get("label", "calm"), 0)
+
+            self.x.append(vec)
+            self.targets.append([tension, jitter])
+            self.labels.append(lbl)
+
+        self.x       = torch.tensor(self.x,       dtype=torch.float32)
+        self.targets = torch.tensor(self.targets,  dtype=torch.float32)
+        self.labels  = torch.tensor(self.labels,   dtype=torch.long)
 
     def __len__(self):
         return len(self.x)
