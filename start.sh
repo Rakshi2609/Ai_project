@@ -1,40 +1,35 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# BCSE306L DA-1: Multimodal Cobot Trust Prediction & Calibration System
-# Interactive Startup Script
-# Authors: Ayushi Singh (24BRS1369), Rakshith Ganjimut (24BRS1301)
+# BCSE306L DA-1: Universal Robots UR5 Multimodal Trust Prediction System
+# Startup Controller (FastAPI Backend + Next.js App Router Dashboard)
 # ==============================================================================
 
 set -e
 
-# Terminal Colors
+# Default Configuration
+PORT="${PORT:-8000}"
+HOST="${HOST:-0.0.0.0}"
+PORT_NEXT="${PORT_NEXT:-3000}"
+RELOAD=false
+RUN_TESTS=false
+OPEN_BROWSER=false
+BACKEND_ONLY=false
+
+# ANSI Terminal Colors
 CYAN='\033[0;36m'
-TEAL='\033[38;5;43m'
+TEAL='\033[38;5;45m'
 GREEN='\033[0;32m'
-GOLD='\033[38;5;220m'
 AMBER='\033[0;33m'
 RED='\033[0;31m'
 PURPLE='\033[0;35m'
 BOLD='\033[1m'
 DIM='\033[2m'
+GOLD='\033[38;5;220m'
 NC='\033[0m' # No Color
 
-# Default parameters
-HOST="0.0.0.0"
-PORT="8000"
-RELOAD=false
-RUN_TESTS=false
-OPEN_BROWSER=false
-
-# Directory of this script
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-
-# Print banner
 print_banner() {
-  clear 2>/dev/null || true
-  echo -e "${TEAL}${BOLD}"
-  cat << 'EOF'
+  echo -e "${TEAL}"
+  cat << "EOF"
   ██████╗ ██████╗ ██████╗  ██████╗ ████████╗    ████████╗██████╗ ██╗   ██╗███████╗████████╗
  ██╔════╝██╔═══██╗██╔══██╗██╔═══██╗╚══██╔══╝    ╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝
  ██║     ██║   ██║██████╔╝██║   ██║   ██║          ██║   ██████╔╝██║   ██║███████╗   ██║   
@@ -42,11 +37,8 @@ print_banner() {
  ╚██████╗╚██████╔╝██████╔╝╚██████╔╝   ██║          ██║   ██║  ██║╚██████╔╝███████║   ██║   
   ╚═════╝ ╚═════╝ ╚═════╝  ╚═════╝    ╚═╝          ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   
 EOF
-  echo -e "${NC}"
-  echo -e " ${BOLD}Multimodal Machine Learning for Human Trust Calibration in Cobots${NC}"
-  echo -e " ${DIM}Course: BCSE306L (DA-1) | VIT Chennai | Dr. Vijayprabhakaran${NC}"
-  echo -e " ${DIM}Authors: Ayushi Singh (24BRS1369) & Rakshith Ganjimut (24BRS1301)${NC}"
-  echo -e "${CYAN}────────────────────────────────────────────────────────────────────────────────${NC}"
+  echo -e "${CYAN}${BOLD}     MULTIMODAL HUMAN-ROBOT COLLABORATION TRUST PREDICTION SYSTEM (BCSE306L DA-1)${NC}"
+  echo -e "${DIM}     VIT Chennai • Collaborative Robotics & Multimodal Machine Learning Laboratory${NC}\n"
 }
 
 # Parse Command-Line Arguments
@@ -54,6 +46,8 @@ while [[ "$#" -gt 0 ]]; do
   case $1 in
     --port) PORT="$2"; shift ;;
     --host) HOST="$2"; shift ;;
+    --port-next) PORT_NEXT="$2"; shift ;;
+    --backend-only) BACKEND_ONLY=true ;;
     --reload) RELOAD=true ;;
     --test) RUN_TESTS=true ;;
     --open) OPEN_BROWSER=true ;;
@@ -61,8 +55,10 @@ while [[ "$#" -gt 0 ]]; do
       echo -e "${BOLD}Usage:${NC} ./start.sh [options]"
       echo ""
       echo -e "${BOLD}Options:${NC}"
-      echo -e "  ${CYAN}--port <port>${NC}        Specify port (default: 8000)"
+      echo -e "  ${CYAN}--port <port>${NC}        Specify FastAPI port (default: 8000)"
+      echo -e "  ${CYAN}--port-next <port>${NC}   Specify Next.js port (default: 3000)"
       echo -e "  ${CYAN}--host <host>${NC}        Specify host interface (default: 0.0.0.0)"
+      echo -e "  ${CYAN}--backend-only${NC}       Launch only the FastAPI backend service"
       echo -e "  ${CYAN}--reload${NC}             Enable FastAPI hot-reloading for development"
       echo -e "  ${CYAN}--test${NC}               Run pipeline & baseline verification suite before start"
       echo -e "  ${CYAN}--open${NC}               Attempt to automatically open default web browser"
@@ -118,72 +114,94 @@ done
 if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
   echo -e "      ${AMBER}⚠ Missing packages:${NC} ${MISSING_PKGS[*]}"
   echo -e "      ${CYAN}→ Installing required packages from requirements.txt...${NC}"
-  $PYTHON_CMD -m pip install -r requirements.txt
-  echo -e "      ${GREEN}✔${NC} All dependencies successfully installed!"
+  $PYTHON_CMD -m pip install -q -r requirements.txt
+  echo -e "      ${GREEN}✔${NC} All dependencies installed successfully."
 else
-  echo -e "      ${GREEN}✔${NC} All dependencies verified (PyTorch, FastAPI, NumPy, SciPy, Scikit-Learn)"
+  echo -e "      ${GREEN}✔${NC} All Python dependencies verified (PyTorch, FastAPI, NumPy, SciPy, Scikit-learn)."
 fi
 
-# Run tests if requested
+# Step 4: Optional Pre-Flight Test Suite
 if [ "$RUN_TESTS" = true ]; then
-  echo -e "\n${PURPLE}${BOLD}[TEST]${NC} Running verification tests..."
-  "$SCRIPT_DIR/test.sh" || {
-    echo -e "${RED}✘ Tests failed! Aborting server start.${NC}"
-    exit 1
-  }
-fi
-
-# Step 4: Check if port is already in use
-echo -e "${CYAN}[4/4]${NC} Checking port availability on ${PORT}..."
-PID_ON_PORT=$(lsof -ti:"$PORT" 2>/dev/null || fuser "$PORT/tcp" 2>/dev/null || true)
-
-if [ -n "$PID_ON_PORT" ]; then
-  echo -e "      ${AMBER}⚠ Port $PORT is already in use by process PID $PID_ON_PORT.${NC}"
-  read -r -p "      Terminate existing process on port $PORT? [Y/n]: " CONFIRM_KILL
-  CONFIRM_KILL=${CONFIRM_KILL:-Y}
-  if [[ "$CONFIRM_KILL" =~ ^[Yy]$ ]]; then
-    kill -9 $PID_ON_PORT 2>/dev/null || true
-    sleep 0.8
-    echo -e "      ${GREEN}✔${NC} Process terminated. Port $PORT released."
+  echo -e "\n${CYAN}[4/4]${NC} Running pre-flight verification test suite..."
+  if ./test.sh; then
+    echo -e "      ${GREEN}✔${NC} Pre-flight verification passed 100%."
   else
-    echo -e "${RED}✘ Cannot start server while port $PORT is occupied. Try --port <another_port>.${NC}"
+    echo -e "      ${RED}✘ Error: Verification tests failed. Aborting startup.${NC}"
     exit 1
   fi
 else
-  echo -e "      ${GREEN}✔${NC} Port $PORT is free and ready."
+  echo -e "${CYAN}[4/4]${NC} Pre-flight test skipped (pass ${BOLD}--test${NC} to run before start)."
 fi
+
+# Check for Port Collisions on port 8000
+echo -e "\n${CYAN}[Diagnostics]${NC} Checking network interfaces..."
+OCCUPIED=$(lsof -ti:"$PORT" 2>/dev/null || fuser "$PORT/tcp" 2>/dev/null || true)
+if [ -n "$OCCUPIED" ]; then
+  echo -e "      ${AMBER}⚠ Notice: Port $PORT is occupied by PID(s): $OCCUPIED${NC}"
+  echo -e "      ${CYAN}→ Terminating stale process on port $PORT...${NC}"
+  kill -15 $OCCUPIED 2>/dev/null || kill -9 $OCCUPIED 2>/dev/null || true
+  sleep 1
+fi
+echo -e "      ${GREEN}✔${NC} FastAPI port $PORT is free and ready."
 
 # Display launch info
 echo -e "${CYAN}────────────────────────────────────────────────────────────────────────────────${NC}"
-echo -e "${GOLD}${BOLD}  🚀 LAUNCHING 3D COBOT COCKPIT & REST API SERVER${NC}"
-echo -e "  ${BOLD}Local URL:${NC}    ${TEAL}${BOLD}http://localhost:${PORT}${NC}"
-echo -e "  ${BOLD}Network URL:${NC}  ${TEAL}http://${HOST}:${PORT}${NC}"
-echo -e "  ${BOLD}API Docs:${NC}     ${DIM}http://localhost:${PORT}/docs${NC}"
-echo -e "  ${BOLD}Press Ctrl+C to safely terminate server.${NC}"
+echo -e "${GOLD}${BOLD}  🚀 LAUNCHING MULTIMODAL COBOT TRUST SYSTEM${NC}"
+echo -e "  ${BOLD}Next.js Modern Dashboard:${NC}  ${TEAL}${BOLD}http://localhost:${PORT_NEXT}${NC}"
+echo -e "  ${BOLD}FastAPI Backend / REST API:${NC} ${TEAL}http://localhost:${PORT}${NC}"
+echo -e "  ${BOLD}FastAPI Swagger Docs:${NC}       ${DIM}http://localhost:${PORT}/docs${NC}"
+echo -e "  ${BOLD}Press Ctrl+C to safely terminate all services.${NC}"
 echo -e "${CYAN}────────────────────────────────────────────────────────────────────────────────${NC}\n"
 
-# Optional auto-open browser in background
-if [ "$OPEN_BROWSER" = true ]; then
-  (
-    sleep 1.5
-    if command -v xdg-open &>/dev/null; then
-      xdg-open "http://localhost:${PORT}" &>/dev/null
-    elif command -v open &>/dev/null; then
-      open "http://localhost:${PORT}" &>/dev/null
-    fi
-  ) &
-fi
+# Cleanup trap for graceful shutdown
+API_PID=""
+NEXT_PID=""
 
-# Handle SIGINT and SIGTERM gracefully
 cleanup() {
-  echo -e "\n${AMBER}Stopping Cobot Trust Server...${NC}"
+  echo -e "\n${AMBER}Shutting down Cobot Trust System services...${NC}"
+  if [ -n "$API_PID" ]; then kill -15 "$API_PID" 2>/dev/null || true; fi
+  if [ -n "$NEXT_PID" ]; then kill -15 "$NEXT_PID" 2>/dev/null || true; fi
   exit 0
 }
 trap cleanup SIGINT SIGTERM
 
-# Launch uvicorn
+# 1. Start FastAPI Backend in background
 if [ "$RELOAD" = true ]; then
-  exec $PYTHON_CMD -m uvicorn server:app --host "$HOST" --port "$PORT" --reload
+  $PYTHON_CMD -m uvicorn server:app --host "$HOST" --port "$PORT" --reload &
 else
-  exec $PYTHON_CMD -m uvicorn server:app --host "$HOST" --port "$PORT"
+  $PYTHON_CMD -m uvicorn server:app --host "$HOST" --port "$PORT" &
+fi
+API_PID=$!
+
+# 2. Start Next.js Frontend
+if [ "$BACKEND_ONLY" = false ] && [ -d "dashboard" ]; then
+  (
+    cd dashboard
+    if [ -d ".next" ]; then
+      npm run start -- -p "$PORT_NEXT"
+    else
+      npm run dev -- -p "$PORT_NEXT"
+    fi
+  ) &
+  NEXT_PID=$!
+fi
+
+# Optional auto-open browser in background
+if [ "$OPEN_BROWSER" = true ]; then
+  (
+    sleep 2
+    URL="http://localhost:${PORT_NEXT}"
+    if command -v xdg-open &>/dev/null; then
+      xdg-open "$URL" &>/dev/null
+    elif command -v open &>/dev/null; then
+      open "$URL" &>/dev/null
+    fi
+  ) &
+fi
+
+# Wait for both processes
+if [ -n "$NEXT_PID" ]; then
+  wait "$API_PID" "$NEXT_PID"
+else
+  wait "$API_PID"
 fi

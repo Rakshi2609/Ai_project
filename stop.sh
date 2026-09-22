@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# BCSE306L DA-1: Stop Cobot Trust Prediction Server
+# BCSE306L DA-1: Stop Cobot Trust Prediction Servers (FastAPI & Next.js)
 # ==============================================================================
 
-PORT="${1:-8000}"
+PORT_API="${1:-8000}"
+PORT_NEXT="${2:-3000}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -13,20 +14,24 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-echo -e "${CYAN}${BOLD}[Cobot Trust System]${NC} Searching for processes on port ${PORT}..."
+echo -e "${CYAN}${BOLD}[Cobot Trust System]${NC} Terminating active services..."
 
-PIDS=$(lsof -ti:"$PORT" 2>/dev/null || fuser "$PORT/tcp" 2>/dev/null || true)
-
-if [ -z "$PIDS" ]; then
-  # Also check by process name in case
-  PIDS=$(pgrep -f "server:app" || true)
+# Terminate FastAPI Backend
+PIDS_API=$(lsof -ti:"$PORT_API" 2>/dev/null || fuser "$PORT_API/tcp" 2>/dev/null || pgrep -f "server:app" || true)
+if [ -n "$PIDS_API" ]; then
+  echo -e "${AMBER}Stopping FastAPI backend on port ${PORT_API} (PIDs: ${PIDS_API})...${NC}"
+  kill -15 $PIDS_API 2>/dev/null || kill -9 $PIDS_API 2>/dev/null || true
+  echo -e "${GREEN}✔ Backend stopped.${NC}"
+else
+  echo -e "${GREEN}✔ No backend running on port ${PORT_API}.${NC}"
 fi
 
-if [ -n "$PIDS" ]; then
-  echo -e "${AMBER}Found active server process(es): ${PIDS}${NC}"
-  kill -15 $PIDS 2>/dev/null || kill -9 $PIDS 2>/dev/null || true
-  sleep 0.5
-  echo -e "${GREEN}✔ Server successfully stopped.${NC}"
+# Terminate Next.js Dashboard
+PIDS_NEXT=$(lsof -ti:"$PORT_NEXT" 2>/dev/null || fuser "$PORT_NEXT/tcp" 2>/dev/null || pgrep -f "next-server" || true)
+if [ -n "$PIDS_NEXT" ]; then
+  echo -e "${AMBER}Stopping Next.js dashboard on port ${PORT_NEXT} (PIDs: ${PIDS_NEXT})...${NC}"
+  kill -15 $PIDS_NEXT 2>/dev/null || kill -9 $PIDS_NEXT 2>/dev/null || true
+  echo -e "${GREEN}✔ Next.js dashboard stopped.${NC}"
 else
-  echo -e "${GREEN}✔ No active server running on port ${PORT}.${NC}"
+  echo -e "${GREEN}✔ No Next.js server running on port ${PORT_NEXT}.${NC}"
 fi

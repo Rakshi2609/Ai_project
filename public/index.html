@@ -265,6 +265,289 @@
     ::-webkit-scrollbar-thumb { background: #212f54; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #2dd4bf; }
   </style>
+
+<style id="premium-ui-overrides">
+/* ================================================================
+   PREMIUM UI PASS — futuristic robotics lab / cinematic HUD
+   Keeps all existing IDs + JS behavior intact.
+   ================================================================ */
+:root{
+  --bg:#02040a; --panel:rgba(10,15,27,.78); --panel2:rgba(14,21,37,.66);
+  --line:rgba(148,163,184,.12); --line-hi:rgba(45,212,191,.28);
+  --teal:#2dd4bf; --cyan:#22d3ee; --blue:#60a5fa; --violet:#a78bfa;
+}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(900px 500px at 50% -15%,rgba(45,212,191,.13),transparent 65%),
+    radial-gradient(700px 500px at 100% 30%,rgba(34,211,238,.08),transparent 62%),
+    radial-gradient(650px 500px at 0% 85%,rgba(99,102,241,.09),transparent 62%),
+    #02040a !important;
+  letter-spacing:-.01em;
+}
+body:before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:-1; opacity:.32;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+  background-size:56px 56px; mask-image:linear-gradient(to bottom,black,transparent 90%);
+}
+header{
+  background:rgba(2,4,10,.72)!important; border-bottom:1px solid rgba(45,212,191,.14)!important;
+  box-shadow:0 18px 60px rgba(0,0,0,.35)!important;
+}
+header>div{height:76px!important}
+header .relative.w-12.h-12{
+  width:44px!important;height:44px!important;border-radius:14px!important;
+  background:linear-gradient(145deg,#0d1729,#050811)!important;
+}
+header .font-display{letter-spacing:-.025em}
+nav{border-radius:14px!important;background:rgba(7,11,20,.82)!important;border-color:rgba(148,163,184,.10)!important}
+.tab-btn{transition:all .22s ease!important}
+.tab-btn:hover{transform:translateY(-1px)}
+
+/* Make the scenario rail feel like a control deck */
+body>div.border-b.border-white\/5{background:rgba(4,7,14,.62)!important;backdrop-filter:blur(18px)}
+.scenario-btn{background:rgba(10,16,29,.72)!important;border-color:rgba(148,163,184,.10)!important;transition:all .2s ease!important}
+.scenario-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.25)!important}
+
+/* Premium cards */
+.glass-card{
+  background:linear-gradient(145deg,rgba(14,21,37,.82),rgba(5,9,18,.82))!important;
+  border:1px solid rgba(148,163,184,.12)!important;
+  border-radius:20px!important;
+  box-shadow:0 20px 60px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.055)!important;
+  overflow:hidden;
+}
+.glass-card:after{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(115deg,rgba(255,255,255,.035),transparent 25%,transparent 70%,rgba(45,212,191,.025));
+}
+.glass-card-hover:hover{
+  transform:translateY(-3px)!important;border-color:rgba(45,212,191,.26)!important;
+  box-shadow:0 28px 80px rgba(0,0,0,.35),0 0 35px rgba(45,212,191,.07),inset 0 1px 0 rgba(255,255,255,.08)!important;
+}
+.hud-border:before,.hud-border:after{width:18px!important;height:18px!important}
+
+/* Typography hierarchy */
+h1,h2,h3,h4,.font-display{font-family:'Space Grotesk','Plus Jakarta Sans',sans-serif!important}
+.font-mono{font-family:'JetBrains Mono',monospace!important}
+main{padding-top:30px!important;padding-bottom:44px!important}
+
+/* Metric cards: stronger visual hierarchy */
+#section-simulation>div:first-child>.glass-card{min-height:164px}
+#score-val,#speed-factor-badge,#latency-val{font-size:2.05rem!important}
+#state-badge{box-shadow:0 0 28px rgba(16,185,129,.16)!important}
+
+/* Cockpit viewport */
+#webglContainer{
+  height:470px!important;border-radius:18px!important;
+  background:
+    radial-gradient(circle at 50% 45%,rgba(45,212,191,.055),transparent 38%),
+    radial-gradient(circle at 70% 70%,rgba(59,130,246,.06),transparent 34%),#02050b!important;
+  border-color:rgba(45,212,191,.13)!important;
+  box-shadow:inset 0 0 80px rgba(0,0,0,.38),0 16px 50px rgba(0,0,0,.28)!important;
+}
+#webglContainer:before{
+  content:"LIVE SIMULATION / EDGE INFERENCE";position:absolute;top:12px;right:14px;z-index:5;
+  font:700 9px 'JetBrains Mono';letter-spacing:.18em;color:rgba(148,163,184,.55);
+  padding:6px 9px;border:1px solid rgba(148,163,184,.10);border-radius:8px;background:rgba(2,4,10,.48);backdrop-filter:blur(8px)
+}
+
+/* Floating telemetry blocks */
+#webglContainer .absolute.top-3\.5{background:rgba(2,5,11,.72)!important;border-color:rgba(45,212,191,.13)!important;box-shadow:0 12px 30px rgba(0,0,0,.3)!important}
+#webglContainer .absolute.bottom-3\.5 button{backdrop-filter:blur(10px)}
+
+/* Charts */
+canvas{filter:saturate(1.08)}
+#attentionRadarChart,#baselineChartCanvas{filter:drop-shadow(0 0 12px rgba(45,212,191,.08))}
+
+/* Data tables */
+table{border-collapse:separate!important;border-spacing:0}
+thead{background:rgba(10,16,29,.9)!important}
+th{font-family:'Space Grotesk',sans-serif!important;color:#94a3b8!important;letter-spacing:.08em!important}
+tbody tr{transition:background .18s ease,transform .18s ease}
+tbody tr:hover{background:rgba(45,212,191,.035)!important}
+td{color:#d7e0ec}
+
+/* Inputs / selects / textarea */
+select,textarea,input[type="text"],input[type="number"]{
+  background:rgba(4,8,16,.82)!important;border-color:rgba(148,163,184,.13)!important;
+  transition:border-color .2s,box-shadow .2s,background .2s!important;
+}
+select:focus,textarea:focus,input:focus{border-color:rgba(45,212,191,.5)!important;box-shadow:0 0 0 3px rgba(45,212,191,.07)!important}
+
+/* Buttons: less Tailwind-default, more product UI */
+button{font-family:'Space Grotesk','Plus Jakarta Sans',sans-serif}
+button:not(:disabled){cursor:pointer}
+button:active{transform:translateY(1px) scale(.99)}
+
+/* Active status lights */
+.animate-ping{filter:drop-shadow(0 0 7px currentColor)}
+
+/* Modal */
+#param-lab-modal>div:last-child,#demo-tour-modal>div:last-child{
+  background:rgba(4,7,14,.94)!important;border:1px solid rgba(45,212,191,.18)!important;
+  box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 60px rgba(45,212,191,.08)!important;
+  border-radius:24px!important;backdrop-filter:blur(26px)!important;
+}
+
+/* Hide horizontal overflow from wide academic controls */
+@media(max-width:1100px){
+  header>div{height:auto!important;min-height:76px;padding-top:12px;padding-bottom:12px;gap:12px;flex-wrap:wrap}
+  header nav{order:3;width:100%;overflow:auto}
+  header .hidden.lg\:flex{margin-left:auto}
+}
+@media(max-width:700px){
+  main{padding-left:12px!important;padding-right:12px!important}
+  #webglContainer{height:380px!important}
+  #section-simulation>div:first-child>.glass-card{min-height:0}
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
+</style>
+
+
+<style id="fullscreen-fix-v2">
+/* ================================================================
+   FULLSCREEN LAYOUT FIX v2
+   Prevents the academic header from eating itself on 1280px screens.
+   ================================================================ */
+*{box-sizing:border-box}
+html,body{width:100%;min-width:0;overflow-x:hidden}
+
+/* ---------- TOP BAR ---------- */
+header{height:78px!important;min-height:78px!important}
+header>div{
+  width:100%!important;max-width:none!important;height:78px!important;
+  padding:0 18px!important;margin:0!important;
+  display:grid!important;
+  grid-template-columns:minmax(285px, 1.05fr) minmax(520px, 1.65fr) auto!important;
+  align-items:center!important;gap:14px!important;
+}
+
+/* Brand block */
+header>div>div:first-child{
+  min-width:0!important;width:100%!important;
+  display:flex!important;align-items:center!important;gap:10px!important;
+}
+header>div>div:first-child>div:last-child{min-width:0!important;overflow:hidden}
+header .font-extrabold.text-base.sm\:text-lg{
+  display:block!important;white-space:nowrap!important;overflow:hidden!important;
+  text-overflow:ellipsis!important;font-size:15px!important;line-height:1.1!important;
+}
+header .font-extrabold.text-base.sm\:text-lg+span{white-space:nowrap!important}
+header>div>div:first-child p{
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  max-width:100%!important;font-size:10px!important;line-height:1.2!important;
+}
+header .relative.w-12.h-12{flex:0 0 42px!important;width:42px!important;height:42px!important}
+
+/* Header navigation */
+header>div>nav{
+  min-width:0!important;width:100%!important;
+  display:flex!important;justify-content:center!important;align-items:center!important;
+  gap:3px!important;padding:4px!important;overflow:hidden!important;
+  white-space:nowrap!important;
+}
+header>div>nav button{
+  min-width:0!important;flex:0 1 auto!important;
+  padding:8px 9px!important;border-radius:10px!important;
+  font-size:10px!important;line-height:1.1!important;
+  white-space:nowrap!important;gap:5px!important;
+}
+header>div>nav button i{width:13px!important;height:13px!important;flex:0 0 auto!important}
+header>div>nav button span{white-space:nowrap!important}
+#nav-btn-tour{padding-left:10px!important;padding-right:10px!important}
+
+/* Right-side controls */
+header>div>div:last-child{
+  min-width:0!important;display:flex!important;justify-content:flex-end!important;
+  align-items:center!important;gap:6px!important;
+}
+header>div>div:last-child button{white-space:nowrap!important}
+header>div>div:last-child>span{white-space:nowrap!important;font-size:9px!important;padding:7px 9px!important}
+#voice-toggle-btn{padding:7px 9px!important}
+#voice-toggle-label{font-size:9px!important}
+
+/* ---------- SCENARIO DECK ---------- */
+body>div.border-b.border-white\/5{
+  height:52px!important;min-height:52px!important;padding:0!important;
+  display:flex!important;align-items:center!important;overflow:hidden!important;
+}
+body>div.border-b.border-white\/5>div{
+  width:100%!important;max-width:none!important;margin:0!important;
+  padding:0 18px!important;display:grid!important;
+  grid-template-columns:auto minmax(0,1fr) auto!important;
+  align-items:center!important;gap:10px!important;
+}
+body>div.border-b.border-white\/5>div>div:first-child{
+  min-width:0!important;display:flex!important;align-items:center!important;
+  gap:6px!important;overflow:hidden!important;white-space:nowrap!important;
+}
+body>div.border-b.border-white\/5>div>div:first-child>span{
+  flex:0 0 auto!important;font-size:9px!important;white-space:nowrap!important;
+}
+.scenario-btn{
+  flex:0 0 auto!important;padding:7px 9px!important;font-size:9px!important;
+  border-radius:9px!important;white-space:nowrap!important;
+}
+body>div.border-b.border-white\/5>div>div:last-child{
+  display:flex!important;align-items:center!important;gap:6px!important;
+  white-space:nowrap!important;
+}
+body>div.border-b.border-white\/5>div>div:last-child button{
+  padding:7px 9px!important;font-size:9px!important;white-space:nowrap!important;
+}
+
+/* ---------- WORKSPACE ---------- */
+main{
+  width:100%!important;max-width:1440px!important;
+  padding:20px 18px 38px!important;margin:0 auto!important;
+}
+#section-simulation{gap:18px!important}
+#section-simulation>div:first-child{gap:12px!important}
+#section-simulation>div:first-child>.glass-card{min-height:145px!important}
+
+/* Make the cockpit feel like the focal product surface */
+#webglContainer{height:430px!important}
+
+/* ---------- TABLET / SMALL DESKTOP ---------- */
+@media(max-width:1180px){
+  header>div{
+    grid-template-columns:minmax(245px,1fr) minmax(420px,1.4fr) auto!important;
+    gap:8px!important;padding:0 12px!important;
+  }
+  header>div>nav button{padding:7px 7px!important;font-size:9px!important}
+  header>div>nav button span{display:none!important}
+  header>div>nav button i{width:15px!important;height:15px!important}
+  header>div>div:last-child>span{display:none!important}
+  body>div.border-b.border-white\/5>div{padding:0 12px!important}
+  body>div.border-b.border-white\/5>div>div:first-child>span{display:none!important}
+}
+
+@media(max-width:900px){
+  header{height:116px!important;min-height:116px!important}
+  header>div{
+    height:116px!important;grid-template-columns:1fr auto!important;
+    grid-template-rows:54px 46px;gap:4px!important;
+  }
+  header>div>nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto!important}
+  header>div>div:last-child{grid-column:2;grid-row:1}
+  body>div.border-b.border-white\/5{height:auto!important;min-height:52px!important}
+  body>div.border-b.border-white\/5>div{display:flex!important;overflow-x:auto!important;padding:8px 12px!important}
+  body>div.border-b.border-white\/5>div>div:last-child{margin-left:auto!important}
+  main{padding:16px 12px 30px!important}
+}
+
+/* At the screenshot width, remove non-essential header badges rather than wrapping the header. */
+@media(max-width:1400px){
+  header>div>div:first-child>div:last-child .hidden.xl\:inline-flex{display:none!important}
+  header>div>div:first-child>div:last-child>.bg-emerald-500\/15{display:none!important}
+}
+</style>
+
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-teal-500 selection:text-black">
   <div class="cyber-scanline"></div>
@@ -285,7 +568,7 @@
         </div>
         <div>
           <div class="flex items-center space-x-2">
-            <span class="font-extrabold text-base sm:text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-teal-200 via-cyan-100 to-sky-300 font-display">Multimodal Cobot Trust Prediction</span>
+            <span class="font-extrabold text-base sm:text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-teal-200 via-cyan-100 to-sky-300 font-display">Multimodal Cobot Trust Prediction</span><span class="hidden xl:inline-flex ml-1 px-2 py-0.5 rounded-md border border-white/10 bg-white/[.03] text-[8px] font-mono tracking-[.18em] text-slate-500">RESEARCH CONSOLE</span>
             <span class="px-2.5 py-0.5 text-[10px] font-mono tracking-widest uppercase bg-teal-500/15 text-teal-300 border border-teal-400/40 rounded-full shadow-[0_0_12px_rgba(45,212,191,0.25)]">BCSE306L DA-1</span>
             <span class="hidden md:inline-flex items-center px-2.5 py-0.5 text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-400/40 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.2)]">
               <i data-lucide="shield-check" class="w-3 h-3 mr-1 text-emerald-400"></i> MSE &lt; 0.08 Target Verified
@@ -524,7 +807,7 @@
             <div class="flex items-center space-x-2.5">
               <div class="w-3 h-3 rounded-full bg-teal-400 animate-ping"></div>
               <h3 class="text-sm font-bold text-white tracking-wide flex items-center font-display">
-                Universal Robots UR5 Simulated Collaborative Assembly
+                UR5 / HUMAN COLLABORATION SIMULATOR
               </h3>
             </div>
             
