@@ -112,6 +112,18 @@
     .gauge-circle {
       transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease;
     }
+    .tour-highlight {
+      box-shadow: 0 0 0 3px #f59e0b, 0 0 25px rgba(245, 158, 11, 0.8) !important;
+      border-color: #f59e0b !important;
+      transform: scale(1.06);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 40 !important;
+      animation: tourPulse 1.4s infinite alternate;
+    }
+    @keyframes tourPulse {
+      0% { box-shadow: 0 0 0 3px #f59e0b, 0 0 15px rgba(245, 158, 11, 0.5); }
+      100% { box-shadow: 0 0 0 6px #fbbf24, 0 0 32px rgba(251, 191, 36, 0.95); }
+    }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #070b16; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -169,12 +181,20 @@
           <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
           <span>Retraining Studio</span>
         </button>
+        <button onclick="startGuidedTour()" id="nav-btn-tour" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:from-amber-400 hover:to-orange-400 transition flex items-center space-x-1.5 shadow-md shadow-amber-500/20">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          <span>Guided Demo Tour 🎙️</span>
+        </button>
       </nav>
 
       <!-- Audio Feedback & Status Indicators -->
       <div class="hidden lg:flex items-center space-x-3">
         <button onclick="toggleAudioFx()" id="audio-fx-btn" class="p-2 rounded-lg bg-dark-900 border border-gray-800 text-gray-400 hover:text-teal-400 transition text-xs flex items-center space-x-1" title="Toggle UI Sound Effects">
           <i id="audio-fx-icon" data-lucide="volume-2" class="w-4 h-4 text-teal-400"></i>
+        </button>
+        <button onclick="toggleVoiceCommentary()" id="voice-toggle-btn" class="px-2.5 py-1 rounded-lg bg-dark-900 border border-teal-500/30 text-teal-400 hover:text-white transition text-xs flex items-center space-x-1" title="Toggle Voice Explanation Narration">
+          <i data-lucide="mic" class="w-3.5 h-3.5 text-teal-400"></i>
+          <span id="voice-toggle-label" class="font-mono text-[11px]">Voice: ON</span>
         </button>
         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -192,29 +212,33 @@
         <span class="text-xs text-gray-400 font-semibold hidden md:inline flex items-center">
           <i data-lucide="flask-conical" class="w-3.5 h-3.5 mr-1 text-teal-400"></i> Benchmark Scenarios:
         </span>
-        <button onclick="loadScenario('scenario_1')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+        <button onclick="loadScenario('scenario_1')" id="btn-scenario-1" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
           <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
           <span>1: Nominal Assembly</span>
         </button>
-        <button onclick="loadScenario('scenario_2')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+        <button onclick="loadScenario('scenario_2')" id="btn-scenario-2" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
           <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
           <span>2: Gripper Slip Error</span>
         </button>
-        <button onclick="loadScenario('scenario_3')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+        <button onclick="loadScenario('scenario_3')" id="btn-scenario-3" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
           <span class="w-2 h-2 rounded-full bg-amber-400"></span>
           <span>3: Noise &amp; Motion</span>
         </button>
-        <button onclick="loadScenario('scenario_4')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+        <button onclick="loadScenario('scenario_4')" id="btn-scenario-4" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
           <span class="w-2 h-2 rounded-full bg-purple-400"></span>
           <span>4: Complacency Hazard</span>
         </button>
-        <button onclick="loadScenario('scenario_5')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+        <button onclick="loadScenario('scenario_5')" id="btn-scenario-5" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
           <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
           <span>5: Hesitation Disuse</span>
         </button>
       </div>
 
       <div class="flex items-center space-x-2">
+        <button onclick="startGuidedTour()" id="btn-start-tour" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white hover:brightness-110 transition flex items-center space-x-1.5 shadow-lg shadow-orange-500/25 border border-amber-300/40 animate-pulse">
+          <i data-lucide="play-circle" class="w-3.5 h-3.5 text-amber-200"></i>
+          <span>Start Guided Demo Tour 🎙️</span>
+        </button>
         <button onclick="toggleSlidersModal()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 text-teal-300 hover:bg-dark-750 transition flex items-center space-x-1.5 border border-teal-500/30">
           <i data-lucide="sliders" class="w-3.5 h-3.5 text-teal-400"></i>
           <span>Multimodal Sliders Lab</span>
@@ -983,6 +1007,97 @@
       </div>
     </div>
 
+    <!-- ================================================================= -->
+    <!-- INTERACTIVE GUIDED DEMO TOUR HUD & VOICE NARRATION -->
+    <!-- ================================================================= -->
+    <div id="guided-tour-hud" class="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-4xl px-4 z-50 transition-all duration-500 hidden">
+      <div class="bg-dark-900/95 border-2 border-amber-500/80 rounded-2xl p-4 shadow-2xl shadow-amber-500/20 backdrop-blur-xl space-y-3">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-gray-800/80 pb-2.5">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-500 flex items-center justify-center text-black font-black shadow-lg shadow-amber-500/30">
+              <i data-lucide="bot" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="font-extrabold text-sm text-white">Live Evaluator Guided Demo</span>
+                <span id="tour-step-badge" class="px-2.5 py-0.5 text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full">Step 1 of 6</span>
+                <span id="tour-status-pill" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1"></span> Tour Active
+                </span>
+              </div>
+              <p class="text-xs text-gray-400">Interactive review walkthrough with speech synthesis &amp; automated execution</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center space-x-2">
+            <button onclick="toggleVoiceNarration()" id="tour-voice-btn" class="px-2.5 py-1 text-xs rounded-lg bg-dark-800 border border-teal-500/40 text-teal-300 hover:bg-dark-750 flex items-center space-x-1 transition">
+              <i id="tour-voice-icon" data-lucide="volume-2" class="w-3.5 h-3.5 text-teal-400"></i>
+              <span id="tour-voice-label" class="font-mono text-[11px]">Voice: ON</span>
+            </button>
+            <button onclick="toggleAutoPlayTour()" id="tour-autoplay-btn" class="px-2.5 py-1 text-xs rounded-lg bg-dark-800 border border-amber-500/40 text-amber-300 hover:bg-dark-750 flex items-center space-x-1 transition">
+              <i id="tour-autoplay-icon" data-lucide="play" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span id="tour-autoplay-label" class="font-mono text-[11px]">Auto-Play</span>
+            </button>
+            <button onclick="exitDemoTour()" class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition" title="Exit Guided Tour">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Target Button Highlight Action Banner -->
+        <div id="tour-action-banner" class="bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-inner">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-amber-400 font-extrabold text-xs tracking-wider uppercase flex items-center animate-pulse">
+              <i data-lucide="mouse-pointer-click" class="w-4 h-4 mr-1"></i> PRESS THIS BUTTON:
+            </span>
+            <span id="tour-target-button-name" class="font-mono text-xs font-bold text-amber-200 bg-dark-950 px-3 py-1 rounded-lg border border-amber-400/60 shadow">
+              [1: Nominal Assembly]
+            </span>
+          </div>
+          <button onclick="executeCurrentTourStep()" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-amber-400 to-orange-400 text-black hover:brightness-105 shadow transition flex items-center space-x-1">
+            <i data-lucide="play" class="w-3.5 h-3.5 text-black fill-current"></i>
+            <span>Execute This Step</span>
+          </button>
+        </div>
+
+        <!-- Voice Narration & Subtitle Transcript -->
+        <div class="bg-dark-950/90 border border-gray-800 rounded-xl p-3.5 shadow-inner">
+          <div class="flex items-center justify-between text-[11px] font-mono mb-1.5">
+            <span class="text-teal-400 font-bold flex items-center">
+              <i data-lucide="mic" class="w-3.5 h-3.5 text-amber-400 mr-1.5 animate-pulse"></i>
+              VOICE NARRATION &amp; LIVE EXPLANATION:
+            </span>
+            <span id="tour-speaking-indicator" class="text-amber-400 text-[10px] hidden flex items-center">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping mr-1"></span> Speaking aloud...
+            </span>
+          </div>
+          <p id="tour-spoken-text" class="text-xs sm:text-sm text-gray-100 leading-relaxed font-sans">
+            Loading tour step...
+          </p>
+        </div>
+
+        <!-- Navigation Controls & Progress Dots -->
+        <div class="flex items-center justify-between pt-1">
+          <button onclick="prevTourStep()" id="tour-prev-btn" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 flex items-center space-x-1 border border-gray-700 transition">
+            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+            <span>Previous</span>
+          </button>
+
+          <div class="flex items-center space-x-2" id="tour-step-dots">
+            <!-- Dynamically populated -->
+          </div>
+
+          <button onclick="nextTourStep()" id="tour-next-btn" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-teal-500 text-black hover:bg-teal-400 flex items-center space-x-1 shadow transition">
+            <span>Next Step</span>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 
   <!-- ================================================================= -->
@@ -1396,7 +1511,15 @@
     // -------------------------------------------------------------
     // SCENARIO LOADER & INFERENCE EXECUTION
     // -------------------------------------------------------------
-    async function loadScenario(scenarioId) {
+    const scenarioVoices = {
+      scenario_1: "Scenario 1: Nominal Assembly. UR5 runs at 1.0x nominal speed with 73% calibrated trust and green safety perimeter.",
+      scenario_2: "Scenario 2: Gripper Slip Error. Robot drops workpiece. Trust plunges to 22%. Closed loop engages safety standoff at 0.2x speed.",
+      scenario_3: "Scenario 3: Factory Noise and Motion. Dynamic attention downweights noisy physiological signals and preserves calibrated trust.",
+      scenario_4: "Scenario 4: Complacency Hazard. Trust exceeds 85%. Cautionary auditory warning triggered.",
+      scenario_5: "Scenario 5: Hesitation Disuse. High operator stress despite nominal robot path. Visual explanation mode engaged at 0.85x speed."
+    };
+
+    async function loadScenario(scenarioId, shouldSpeak = true) {
       playAudioTone(750, 'sine', 0.08);
       try {
         const res = await fetch('/api/scenarios');
@@ -1416,6 +1539,11 @@
         });
 
         syncSliders(sc);
+
+        // Voice commentary when not in tour or when requested
+        if (shouldSpeak && voiceEnabled && !tourActive && scenarioVoices[scenarioId]) {
+          speakVoice(scenarioVoices[scenarioId]);
+        }
       } catch (err) {
         console.error('Error loading scenario:', err);
       }
@@ -1997,6 +2125,289 @@
         vocal_params: { pitch_f0_hz: f0, jitter_percent: jitter },
         physio_params: { heart_rate_bpm: hr, eda_microsiemens: eda }
       });
+    }
+
+    // =============================================================
+    // GUIDED DEMO TOUR & WEB SPEECH VOICE NARRATION ENGINE
+    // =============================================================
+    let tourActive = false;
+    let tourStepIndex = 0;
+    let voiceEnabled = true;
+    let autoPlayTour = false;
+    let autoPlayTimer = null;
+
+    const tourSteps = [
+      {
+        title: "Step 1: Nominal Collaborative Assembly",
+        targetId: "btn-scenario-1",
+        targetName: "[1: Nominal Assembly]",
+        tab: "simulation",
+        scenarioId: "scenario_1",
+        speech: "Welcome to our BCSE306L DA2 review demonstration. Step 1: Please click the green button, '1: Nominal Assembly'. Here, the UR5 robot executes with high accuracy. The human operator is calm, so our model predicts a calibrated trust score of 73%. Notice the robot runs at full 1.0x velocity with a green safety perimeter.",
+        text: "👉 <b>PRESS BUTTON: [1: Nominal Assembly]</b>. The 6-DOF UR5 executes its nominal trajectory with DTW drift under 0.02m. The operator's heart rate (74 BPM) and facial composure indicate normal calm, producing a calibrated trust score of <b>0.727 (Calibrated Trust)</b>. The cobot operates at <b>1.00x nominal speed</b> within a green safety boundary."
+      },
+      {
+        title: "Step 2: Robot Gripper Slip & Closed-Loop Standoff",
+        targetId: "btn-scenario-2",
+        targetName: "[2: Gripper Slip Error]",
+        tab: "simulation",
+        scenarioId: "scenario_2",
+        speech: "Step 2: Now click the red button, '2: Gripper Slip Error'. Watch what happens when the robot drops a workpiece. The operator's heart rate spikes and brow furrowing AU04 rises. Trust immediately plunges to 22% into the Under-Trust regime. Our closed-loop policy instantaneously triggers safety standoff, decelerating the robot to 0.2x speed to protect the human operator.",
+        text: "👉 <b>PRESS BUTTON: [2: Gripper Slip Error]</b>. The cobot experiences a simulated gripper drop. Trajectory drift spikes to 0.65m, operator heart rate jumps to 104 BPM, and brow furrow (AU04) reaches 0.72. Predicted trust <b>plunges to 0.224 (Under-Trust)</b>. The closed-loop policy immediately throttles robot velocity to <b>0.20x speed</b> and commands an active safety standoff with an expanding red alert halo."
+      },
+      {
+        title: "Step 3: Factory Noise & Dynamic Attention Gating",
+        targetId: "btn-scenario-3",
+        targetName: "[3: Noise & Motion]",
+        tab: "simulation",
+        scenarioId: "scenario_3",
+        speech: "Step 3: Next, click the amber button, '3: Noise and Motion'. In real factories, acoustic noise and physical arm motion corrupt wearable sensors. Notice how our dynamic softmax attention automatically cuts the physiological weight from 20% down to 8%, shifting reliance onto clean robot kinematics and vision. This avoids false emergency stops.",
+        text: "👉 <b>PRESS BUTTON: [3: Noise & Motion]</b>. Simulates 8 dB factory background noise and wrist motion artifacts. The Dynamic Softmax Attention layer detects the artifact and <b>downweights alpha_physio from 0.20 to 0.08</b>, shifting reliance onto clean robot kinematics and facial expressions. The system maintains accurate trust without false alarms, reducing error by 51.3% compared to static fusion."
+      },
+      {
+        title: "Step 4: Complacency Hazard (Over-Trust Alert)",
+        targetId: "btn-scenario-4",
+        targetName: "[4: Complacency Hazard]",
+        tab: "simulation",
+        scenarioId: "scenario_4",
+        speech: "Step 4: Now click the purple button, '4: Complacency Hazard'. Over-trust is dangerous because human workers drop their guard during shared tooling. When trust exceeds 85%, our system triggers a cautionary auditory alert, reminding the operator to maintain active supervision.",
+        text: "👉 <b>PRESS BUTTON: [4: Complacency Hazard]</b>. Over-trust occurs when the human assumes the robot cannot fail. With trust reaching <b>0.884 (Over-Trust)</b>, the system sounds an auditory alert and visual caution banner, preventing complacency during critical collaborative handover operations."
+      },
+      {
+        title: "Step 5: Academic Baselines Benchmark Evaluation",
+        targetId: "tab-btn-baselines",
+        targetName: "[Baselines Benchmark Tab]",
+        tab: "baselines",
+        scenarioId: null,
+        speech: "Step 5: Now, let's open the Baselines Benchmark tab. Here we compare seven architectures. Our proposed Attention-LSTM achieves an MSE of 0.0014, beating the required course ceiling of 0.08 by over 98%, with a decision latency of just 1.1 milliseconds.",
+        text: "👉 <b>PRESS BUTTON: [Baselines Benchmark Tab]</b>. Inspect the comprehensive comparison across 7 architectures. The Proposed Temporal Attention-LSTM achieves <b>MSE = 0.0014</b> (surpassing the mandatory course target MSE < 0.08 by 98.25%), with an R² of <b>0.9888</b>, an F1-score of <b>1.0000</b>, and an edge decision latency of <b>1.1 ms</b> (well below the 250 ms ceiling)."
+      },
+      {
+        title: "Step 6: LOSO Generalization & Retraining Studio",
+        targetId: "tab-btn-retraining",
+        targetName: "[Retraining Studio Tab]",
+        tab: "retraining",
+        scenarioId: null,
+        speech: "Step 6: Finally, check the Retraining Studio tab. When human supervisors log prediction corrections, clicking 'Trigger Retrain' runs an active PyTorch AdamW neural loop to adapt to individual operator psychology. This concludes our live DA2 working demonstration.",
+        text: "👉 <b>PRESS BUTTON: [Retraining Studio Tab]</b>. In production, operator trust thresholds vary. When supervisors log calibration feedback, clicking <b>[Trigger Active Retrain]</b> executes a PyTorch AdamW optimization loop (15 epochs, lr=1e-3) on feedback logs to adapt neural weights. Also notice the LOSO tab verifying generalizability across all 10 participants with mean MSE = 0.0032."
+      }
+    ];
+
+    function startGuidedTour() {
+      tourActive = true;
+      tourStepIndex = 0;
+      const hud = document.getElementById('guided-tour-hud');
+      hud.classList.remove('hidden');
+      hud.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      renderTourStepDots();
+      goToTourStep(0);
+      playAudioTone(880, 'sine', 0.1, 0.08);
+    }
+
+    function exitDemoTour() {
+      tourActive = false;
+      clearTimeout(autoPlayTimer);
+      stopSpeech();
+      clearHighlight();
+      document.getElementById('guided-tour-hud').classList.add('hidden');
+      playAudioTone(440, 'sine', 0.06);
+    }
+
+    function renderTourStepDots() {
+      const container = document.getElementById('tour-step-dots');
+      if (!container) return;
+      container.innerHTML = '';
+      tourSteps.forEach((step, idx) => {
+        const dot = document.createElement('button');
+        dot.className = `h-2 rounded-full transition-all duration-300 ${idx === tourStepIndex ? 'bg-amber-400 w-6' : 'bg-gray-700 hover:bg-gray-500 w-2'}`;
+        dot.title = `Jump to Step ${idx + 1}: ${step.title}`;
+        dot.onclick = () => goToTourStep(idx);
+        container.appendChild(dot);
+      });
+    }
+
+    function clearHighlight() {
+      document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+    }
+
+    function highlightTarget(targetId) {
+      clearHighlight();
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.classList.add('tour-highlight');
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function goToTourStep(index) {
+      if (index < 0 || index >= tourSteps.length) return;
+      tourStepIndex = index;
+      const step = tourSteps[tourStepIndex];
+
+      // Switch tab if step belongs to another tab
+      if (activeTab !== step.tab) {
+        switchTab(step.tab);
+      }
+
+      // Update UI elements
+      document.getElementById('tour-step-badge').textContent = `Step ${tourStepIndex + 1} of ${tourSteps.length}`;
+      document.getElementById('tour-target-button-name').textContent = step.targetName;
+      document.getElementById('tour-spoken-text').innerHTML = step.text;
+      
+      // Update buttons state
+      const prevBtn = document.getElementById('tour-prev-btn');
+      prevBtn.disabled = (tourStepIndex === 0);
+      prevBtn.classList.toggle('opacity-50', tourStepIndex === 0);
+      
+      const nextBtn = document.getElementById('tour-next-btn');
+      if (tourStepIndex === tourSteps.length - 1) {
+        nextBtn.innerHTML = '<span>Finish Tour 🏁</span>';
+      } else {
+        nextBtn.innerHTML = '<span>Next Step</span> <i data-lucide="chevron-right" class="w-3.5 h-3.5 inline"></i>';
+      }
+
+      renderTourStepDots();
+      highlightTarget(step.targetId);
+      lucide.createIcons();
+
+      // Automatically execute the scenario / step action
+      executeCurrentTourStep(false);
+
+      // Speak narration aloud via Web Speech API
+      speakVoice(step.speech, () => {
+        if (autoPlayTour && tourActive) {
+          autoPlayTimer = setTimeout(() => {
+            if (tourStepIndex < tourSteps.length - 1) {
+              nextTourStep();
+            } else {
+              autoPlayTour = false;
+              updateAutoPlayBtn();
+            }
+          }, 3000);
+        }
+      });
+    }
+
+    function executeCurrentTourStep(playTone = true) {
+      const step = tourSteps[tourStepIndex];
+      if (playTone) playAudioTone(800, 'sine', 0.08);
+
+      if (step.scenarioId) {
+        loadScenario(step.scenarioId, false); // false = don't speak duplicate voice
+      } else if (step.targetId) {
+        const el = document.getElementById(step.targetId);
+        if (el) el.click();
+      }
+    }
+
+    function nextTourStep() {
+      clearTimeout(autoPlayTimer);
+      if (tourStepIndex < tourSteps.length - 1) {
+        goToTourStep(tourStepIndex + 1);
+      } else {
+        exitDemoTour();
+      }
+    }
+
+    function prevTourStep() {
+      clearTimeout(autoPlayTimer);
+      if (tourStepIndex > 0) {
+        goToTourStep(tourStepIndex - 1);
+      }
+    }
+
+    function toggleAutoPlayTour() {
+      autoPlayTour = !autoPlayTour;
+      updateAutoPlayBtn();
+      if (autoPlayTour) {
+        goToTourStep(tourStepIndex);
+      } else {
+        clearTimeout(autoPlayTimer);
+      }
+    }
+
+    function updateAutoPlayBtn() {
+      const btn = document.getElementById('tour-autoplay-btn');
+      const label = document.getElementById('tour-autoplay-label');
+      const icon = document.getElementById('tour-autoplay-icon');
+      if (!btn) return;
+      if (autoPlayTour) {
+        btn.className = 'px-2.5 py-1 text-xs rounded-lg bg-amber-500 text-black font-bold flex items-center space-x-1 shadow';
+        label.textContent = 'Auto: ON';
+        icon.setAttribute('data-lucide', 'pause');
+      } else {
+        btn.className = 'px-2.5 py-1 text-xs rounded-lg bg-dark-800 border border-amber-500/40 text-amber-300 hover:bg-dark-750 flex items-center space-x-1 transition';
+        label.textContent = 'Auto-Play';
+        icon.setAttribute('data-lucide', 'play');
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------
+    // WEB SPEECH API SYNTHESIS & VOICE COMMENTARY
+    // -------------------------------------------------------------
+    function speakVoice(text, onEndCallback) {
+      if (!voiceEnabled || !('speechSynthesis' in window)) {
+        if (onEndCallback) setTimeout(onEndCallback, 4500);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = 'en-US';
+
+      // Pick natural english voice if present
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Daniel') || v.name.includes('Alex')));
+      if (preferred) utterance.voice = preferred;
+
+      const indicator = document.getElementById('tour-speaking-indicator');
+      if (indicator) indicator.classList.remove('hidden');
+
+      utterance.onend = () => {
+        if (indicator) indicator.classList.add('hidden');
+        if (onEndCallback) onEndCallback();
+      };
+
+      utterance.onerror = () => {
+        if (indicator) indicator.classList.add('hidden');
+        if (onEndCallback) onEndCallback();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeech() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      const indicator = document.getElementById('tour-speaking-indicator');
+      if (indicator) indicator.classList.add('hidden');
+    }
+
+    function toggleVoiceNarration() {
+      voiceEnabled = !voiceEnabled;
+      const label = document.getElementById('tour-voice-label');
+      const icon = document.getElementById('tour-voice-icon');
+      const globalLabel = document.getElementById('voice-toggle-label');
+      if (voiceEnabled) {
+        if (label) label.textContent = 'Voice: ON';
+        if (globalLabel) globalLabel.textContent = 'Voice: ON';
+        if (icon) icon.setAttribute('data-lucide', 'volume-2');
+        speakVoice("Voice narration enabled.");
+      } else {
+        if (label) label.textContent = 'Voice: OFF';
+        if (globalLabel) globalLabel.textContent = 'Voice: OFF';
+        if (icon) icon.setAttribute('data-lucide', 'volume-x');
+        stopSpeech();
+      }
+      lucide.createIcons();
+    }
+
+    function toggleVoiceCommentary() {
+      toggleVoiceNarration();
     }
   </script>
 </body>
