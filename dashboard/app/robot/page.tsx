@@ -2,8 +2,19 @@
 
 import React, { useState } from "react";
 import Cobot3DView from "@/components/Cobot3DView";
-import { RobotState } from "@/types/telemetry";
-import { Bot, CheckCircle2, AlertTriangle, ShieldCheck, Play, RotateCcw, Activity } from "lucide-react";
+import FaceExpressionCapture from "@/components/FaceExpressionCapture";
+import { RobotState, FacialTelemetry } from "@/types/telemetry";
+import {
+  Bot,
+  CheckCircle2,
+  AlertTriangle,
+  Play,
+  RotateCcw,
+  Activity,
+  Camera,
+  Shield,
+  Zap,
+} from "lucide-react";
 
 export default function RobotDigitalTwinPage() {
   const [robotState, setRobotState] = useState<RobotState>({
@@ -12,6 +23,14 @@ export default function RobotDigitalTwinPage() {
     speed_mps: 0.8,
     drift_m: 0.02,
     torque_anomaly: 0.04,
+  });
+
+  const [facialData, setFacialData] = useState<FacialTelemetry>({
+    au04_brow_furrow: 0.12,
+    blink_rate_bpm: 18,
+    au12_smile: 0.08,
+    mouth_open: 0.05,
+    valence_entropy: 0.14,
   });
 
   const [activeStep, setActiveStep] = useState<number>(0);
@@ -32,6 +51,8 @@ export default function RobotDigitalTwinPage() {
     setActiveStep(0);
   };
 
+  const isOperatorStressed = facialData.au04_brow_furrow > 0.35;
+
   return (
     <div className="space-y-6">
       {/* Title */}
@@ -41,7 +62,7 @@ export default function RobotDigitalTwinPage() {
           UR5 Cobot Digital Twin &amp; Closed-Loop Control
         </h1>
         <p className="text-xs sm:text-sm text-gray-400 mt-1">
-          Interactive 3D UR5 manipulator with real-time kinematic simulation, fault injection options, and adaptive safety curtain.
+          Interactive 3D UR5 manipulator with real-time kinematic simulation, fault injection options, and synchronized operator webcam monitoring.
         </p>
       </div>
 
@@ -79,10 +100,74 @@ export default function RobotDigitalTwinPage() {
         </div>
       </div>
 
-      {/* Main 3D Component */}
-      <Cobot3DView
-        onRobotStateChange={(st) => setRobotState(st)}
-      />
+      {/* Main Grid: 3D Robot on Left (Cols 1-7), Operator Webcam on Right (Cols 8-12) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* 3D UR5 Cobot Digital Twin */}
+        <div className="lg:col-span-7">
+          <Cobot3DView
+            onRobotStateChange={(st) => setRobotState(st)}
+            trustState={
+              robotState.mode === "wrong"
+                ? "UNDER_TRUST"
+                : isOperatorStressed
+                ? "UNDER_TRUST"
+                : "CALIBRATED_TRUST"
+            }
+          />
+        </div>
+
+        {/* Operator Biometric Camera Station */}
+        <div className="lg:col-span-5 space-y-4">
+          <FaceExpressionCapture
+            compact
+            autoStart
+            title="Operator Face & Affect Cam"
+            onTelemetryChange={(data) => setFacialData(data)}
+          />
+
+          {/* Real-Time Cobot Closed-Loop Coupling Card */}
+          <div className="glass-card p-4 border-cyan-500/20 space-y-2.5 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+              <span className="text-gray-300 font-bold flex items-center">
+                <Shield className="w-4 h-4 mr-1.5 text-teal-400" />
+                Human-Cobot Coupling
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  isOperatorStressed
+                    ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                    : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                }`}
+              >
+                {isOperatorStressed ? "STRESS DETECTED" : "NOMINAL HARMONY"}
+              </span>
+            </div>
+
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Robot Mode:</span>
+                <span className={robotState.mode === "wrong" ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>
+                  {robotState.mode.toUpperCase()} ({robotState.error_type})
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">AU04 Brow Stress:</span>
+                <span className={isOperatorStressed ? "text-rose-400 font-bold" : "text-teal-300"}>
+                  {(facialData.au04_brow_furrow * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Velocity Regulation:</span>
+                <span className="text-white font-bold">
+                  {robotState.mode === "wrong" || isOperatorStressed ? "Throttled to 0.2x - 0.5x" : "Full 1.0x (0.8 m/s)"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
 
       {/* Explanation of Correct vs Wrong Behavior */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

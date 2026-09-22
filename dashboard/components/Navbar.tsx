@@ -64,6 +64,13 @@ export default function Navbar() {
 
         {/* Status indicator */}
         <div className="flex items-center space-x-2.5">
+          <Link
+            href="/capture"
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono font-medium bg-teal-500/10 text-teal-300 border border-teal-500/30 hover:bg-teal-500/20 transition"
+          >
+            <Camera className="w-3 h-3 mr-1.5 text-teal-400 animate-pulse" />
+            <span>Cam Feed</span>
+          </Link>
           <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
             <span className="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400 animate-ping" />
             &lt; 250ms RT Edge

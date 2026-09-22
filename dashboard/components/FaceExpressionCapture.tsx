@@ -21,11 +21,15 @@ import { FacialTelemetry } from "@/types/telemetry";
 interface FaceExpressionCaptureProps {
   onTelemetryChange?: (data: FacialTelemetry) => void;
   compact?: boolean;
+  autoStart?: boolean;
+  title?: string;
 }
 
 export default function FaceExpressionCapture({
   onTelemetryChange,
   compact = false,
+  autoStart = false,
+  title = "Real Facial Expression Capture",
 }: FaceExpressionCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -84,6 +88,9 @@ export default function FaceExpressionCapture({
 
   // Clean stop of camera tracks
   const stopCamera = useCallback(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("cobot_camera_enabled");
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         try {
@@ -101,7 +108,15 @@ export default function FaceExpressionCapture({
     setIsInitializing(false);
   }, []);
 
-  // Robust Multi-Stage Camera Starter with Progressive Fallback
+  // Auto-start camera if requested or previously enabled in session
+  useEffect(() => {
+    const isPreviouslyEnabled =
+      typeof window !== "undefined" && sessionStorage.getItem("cobot_camera_enabled") === "true";
+    if (autoStart || isPreviouslyEnabled) {
+      startCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
   const startCamera = async (deviceIdOverride?: string) => {
     setIsInitializing(true);
     setErrorMsg(null);
@@ -196,6 +211,9 @@ export default function FaceExpressionCapture({
     }
 
     streamRef.current = stream;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("cobot_camera_enabled", "true");
+    }
 
     // Refresh device list
     try {
@@ -551,7 +569,7 @@ export default function FaceExpressionCapture({
           </div>
           <div>
             <h3 className="text-xs font-bold text-white font-display tracking-wide flex items-center">
-              Real Facial Expression Capture
+              {title}
               <span
                 className={`ml-2 w-2 h-2 rounded-full ${
                   cameraActive
