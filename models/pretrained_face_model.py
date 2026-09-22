@@ -25,7 +25,7 @@ class FaceAffectNet(nn.Module):
     Encodes 6-dimensional facial geometric & blendshape cues into
     a 64-dimensional latent embedding z_face for multimodal fusion.
     """
-    def __init__(self, input_dim: int = 6, embedding_dim: int = 64):
+    def __init__(self, input_dim: int = 6, embedding_dim: int = 64, num_classes: int = 4):
         super().__init__()
         
         # Non-linear feature representation encoder
@@ -50,21 +50,34 @@ class FaceAffectNet(nn.Module):
             nn.Sigmoid() # Bound AU intensity in [0, 1]
         )
         
-        # Classification head for 2 operational modes: 0: Smile/Calm, 1: Stressed
+        # Classification head for 4 operational modes:
+        # 0: Calm/Smile, 1: Stressed, 2: Surprised, 3: Frustrated
         self.classifier_head = nn.Sequential(
-            nn.Linear(embedding_dim, 16),
+            nn.Linear(embedding_dim, 32),
             nn.ReLU(),
-            nn.Linear(16, 2)
+            nn.Linear(32, num_classes)
         )
 
     def forward(self, x):
         # x: [batch_size, input_dim]
         z_face = self.encoder(x) # [batch_size, 64]
         aus = self.au_head(z_face) # [batch_size, 2] -> [AU04, AU12]
-        logits = self.classifier_head(z_face) # [batch_size, 2]
+        logits = self.classifier_head(z_face) # [batch_size, num_classes]
         return z_face, aus, logits
 
 class FaceDataset(Dataset):
+    LABEL_MAP = {
+        "smile_calm": 0,
+        "calm": 0,
+        "smile": 0,
+        "stressed": 1,
+        "stress": 1,
+        "surprised": 2,
+        "surprise": 2,
+        "frustrated": 3,
+        "frustration": 3
+    }
+
     def __init__(self, json_path: str):
         with open(json_path, "r") as f:
             data = json.load(f)
@@ -76,7 +89,8 @@ class FaceDataset(Dataset):
         for item in data:
             self.x.append(item["mesh_features"])
             self.aus.append([item["au04_brow_furrow"], item["au12_smile"]])
-            self.labels.append(1 if item["label"] == "stressed" else 0)
+            lbl = item.get("label", "smile_calm")
+            self.labels.append(self.LABEL_MAP.get(lbl, 0))
             
         self.x = torch.tensor(self.x, dtype=torch.float32)
         self.aus = torch.tensor(self.aus, dtype=torch.float32)

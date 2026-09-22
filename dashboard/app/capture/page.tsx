@@ -69,15 +69,35 @@ export default function CaptureStudioPage() {
               {stressIndex} / 100
             </span>
           </div>
-          <span
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase font-mono border ${
-              stressIndex > 50
-                ? "bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.3)]"
-                : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-            }`}
-          >
-            {stressIndex > 50 ? "Elevated Stress" : "Calm / Nominal"}
-          </span>
+          {/* 4-Mood Indicator Badge */}
+          {(() => {
+            if (facialData.mouth_open > 0.40) {
+              return (
+                <span className="px-3 py-1.5 rounded-xl text-xs font-bold uppercase font-mono border bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.3)]">
+                  😮 Surprised / Startled
+                </span>
+              );
+            }
+            if (facialData.au04_brow_furrow > 0.60) {
+              return (
+                <span className="px-3 py-1.5 rounded-xl text-xs font-bold uppercase font-mono border bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.3)]">
+                  😤 Frustrated / Skeptical
+                </span>
+              );
+            }
+            if (stressIndex > 45 || facialData.au04_brow_furrow > 0.30) {
+              return (
+                <span className="px-3 py-1.5 rounded-xl text-xs font-bold uppercase font-mono border bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.3)]">
+                  😠 Elevated Stress
+                </span>
+              );
+            }
+            return (
+              <span className="px-3 py-1.5 rounded-xl text-xs font-bold uppercase font-mono border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                😊 Calm / Content
+              </span>
+            );
+          })()}
         </div>
       </div>
 

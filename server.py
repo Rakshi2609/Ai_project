@@ -280,7 +280,15 @@ def run_cobot_inference(payload: CobotInferenceRequest):
                 "jaw_clench": round(float(max(0.0, min(1.0, 0.05 + brow * 0.5 - m_open * 0.2))), 3),
                 "facial_entropy": round(float(entropy), 3),
                 "gaze_drift_variance": round(float(fp.gaze_drift_variance), 3),
-                "dominant_emotion": fp.dominant_emotion or ("Stressed (AU04)" if brow > 0.35 else ("Smiling (Positive)" if smile > 0.35 else "Neutral"))
+                "dominant_emotion": fp.dominant_emotion or (
+                    "Surprised (AU26)" if m_open > 0.40 else (
+                        "Frustrated (Severe AU04)" if brow > 0.60 else (
+                            "Stressed (AU04)" if brow > 0.30 else (
+                                "Calm / Content (AU12)" if smile > 0.30 else "Neutral / Attentive"
+                            )
+                        )
+                    )
+                )
             }
 
         v_dict = None
