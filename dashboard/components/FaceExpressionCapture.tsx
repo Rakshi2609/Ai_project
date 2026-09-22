@@ -362,6 +362,19 @@ export default function FaceExpressionCapture({
             const ow = offCanvas.width;
             const oh = offCanvas.height;
 
+            // 0. Ambient Lighting Luminance Normalization Factor
+            let ambientLumSum = 0;
+            let ambientSampleCount = 0;
+            for (let y = 0; y < oh; y += 4) {
+              for (let x = 0; x < ow; x += 4) {
+                const idx = (y * ow + x) * 4;
+                ambientLumSum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                ambientSampleCount++;
+              }
+            }
+            const meanAmbientLum = ambientSampleCount > 0 ? ambientLumSum / ambientSampleCount : 120;
+            const ambientNorm = 120 / Math.max(25, Math.min(220, meanAmbientLum));
+
             // 1. Forehead / Brow Furrow AU04 Analysis
             let browContrastSum = 0;
             let browSampleCount = 0;
@@ -441,10 +454,10 @@ export default function FaceExpressionCapture({
             const avgMouthLum = mouthSampleCount > 0 ? mouthLumSum / mouthSampleCount : 80.0;
             const avgCheekLum = cheekSampleCount > 0 ? cheekLumSum / cheekSampleCount : 110.0;
 
-            const browFurrow = Math.min(1.0, Math.max(0.04, (avgBrowContrast / 12.0) * 0.45));
+            const browFurrow = Math.min(1.0, Math.max(0.04, ((avgBrowContrast * ambientNorm) / 12.0) * 0.45));
             const smileValence = Math.min(
               1.0,
-              Math.max(0.04, (avgCheekLum / 140.0) * 0.35 - browFurrow * 0.3 + 0.05)
+              Math.max(0.04, ((avgCheekLum * ambientNorm) / 140.0) * 0.35 - browFurrow * 0.3 + 0.05)
             );
             const mouthOpen = Math.min(1.0, Math.max(0.02, Math.abs(avgMouthLum - 90) / 110.0));
             const entropy = Math.min(
