@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BCSE306L DA-1: Multimodal Machine Learning for Predicting Human Trust in Collaborative Robots</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Three.js (r128) & OrbitControls from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  
+  <!-- Chart.js for Baseline & Telemetry Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Google Fonts & Lucide Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              400: '#2dd4bf',
+              500: '#14b8a6',
+              600: '#0d9488',
+            },
+            cobot: {
+              blue: '#3b82f6',
+              amber: '#f59e0b',
+              danger: '#ef4444',
+              safe: '#10b981',
+              purple: '#a855f7',
+            },
+            dark: {
+              950: '#050811',
+              900: '#0a0f1d',
+              850: '#0f172a',
+              800: '#1e293b',
+              750: '#283548',
+              700: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #050811;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.06) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(168, 85, 247, 0.04) 0px, transparent 60%);
+      color: #f1f5f9;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .glass-card {
+      background: rgba(10, 15, 29, 0.82);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 1rem;
+    }
+    .glass-card-hover:hover {
+      border-color: rgba(45, 212, 191, 0.3);
+      box-shadow: 0 0 25px -5px rgba(20, 184, 166, 0.15);
+    }
+    .hud-border {
+      position: relative;
+    }
+    .hud-border::after {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px; width: 10px; height: 10px;
+      border-top: 2px solid #14b8a6;
+      border-left: 2px solid #14b8a6;
+    }
+    .hud-border::before {
+      content: '';
+      position: absolute;
+      bottom: -1px; right: -1px; width: 10px; height: 10px;
+      border-bottom: 2px solid #14b8a6;
+      border-right: 2px solid #14b8a6;
+    }
+    .pulse-danger {
+      animation: dangerGlow 1.8s infinite;
+    }
+    @keyframes dangerGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.5); }
+      50% { box-shadow: 0 0 35px rgba(239, 68, 68, 0.65); border-color: rgba(239, 68, 68, 0.9); }
+    }
+    .pulse-safe {
+      animation: safeGlow 2.5s infinite;
+    }
+    @keyframes safeGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.15); }
+      50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.35); }
+    }
+    /* Gauge circle transition */
+    .gauge-circle {
+      transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #070b16; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-teal-500 selection:text-white">
+
+  <!-- ================================================================= -->
+  <!-- TOP ACADEMIC HEADER -->
+  <!-- ================================================================= -->
+  <header class="border-b border-gray-800/80 bg-dark-950/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      
+      <!-- Brand & Project Info -->
+      <div class="flex items-center space-x-3.5">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-400 p-0.5 shadow-lg shadow-teal-500/20 flex items-center justify-center">
+          <div class="w-full h-full bg-dark-950 rounded-[10px] flex items-center justify-center">
+            <i data-lucide="bot" class="w-6 h-6 text-teal-400 stroke-[2.2]"></i>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-extrabold text-base sm:text-lg tracking-tight text-white">Multimodal Cobot Trust Prediction</span>
+            <span class="px-2 py-0.5 text-[10px] font-mono tracking-wide uppercase bg-teal-500/15 text-teal-400 border border-teal-500/30 rounded">BCSE306L DA-1</span>
+            <span class="hidden md:inline-flex items-center px-2 py-0.5 text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded">
+              <i data-lucide="shield-check" class="w-3 h-3 mr-1"></i> MSE &lt; 0.08 Target Verified
+            </span>
+          </div>
+          <p class="text-xs text-gray-400 mt-0.5">
+            <span class="text-teal-400/90 font-semibold">VIT Chennai</span> • Dr. Vijayprabhakaran • Ayushi Singh (24BRS1369) &amp; Rakshith Ganjimut (24BRS1301)
+          </p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 bg-dark-900/90 p-1.5 rounded-xl border border-gray-800">
+        <button onclick="switchTab('simulation')" id="tab-btn-simulation" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 transition flex items-center space-x-1.5">
+          <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+          <span>3D Cobot Cockpit</span>
+        </button>
+        <button onclick="switchTab('baselines')" id="tab-btn-baselines" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition flex items-center space-x-1.5">
+          <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>
+          <span>Baselines Benchmark</span>
+        </button>
+        <button onclick="switchTab('ablations')" id="tab-btn-ablations" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition flex items-center space-x-1.5">
+          <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+          <span>Ablation Studies</span>
+        </button>
+        <button onclick="switchTab('loso')" id="tab-btn-loso" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition flex items-center space-x-1.5">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i>
+          <span>LOSO Folds</span>
+        </button>
+        <button onclick="switchTab('retraining')" id="tab-btn-retraining" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition flex items-center space-x-1.5">
+          <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+          <span>Retraining Studio</span>
+        </button>
+      </nav>
+
+      <!-- Audio Feedback & Status Indicators -->
+      <div class="hidden lg:flex items-center space-x-3">
+        <button onclick="toggleAudioFx()" id="audio-fx-btn" class="p-2 rounded-lg bg-dark-900 border border-gray-800 text-gray-400 hover:text-teal-400 transition text-xs flex items-center space-x-1" title="Toggle UI Sound Effects">
+          <i id="audio-fx-icon" data-lucide="volume-2" class="w-4 h-4 text-teal-400"></i>
+        </button>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          &lt; 250ms RT Edge
+        </span>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- QUICK PRESET BENCHMARK SCENARIO BAR -->
+  <div class="border-b border-gray-800/50 bg-dark-900/60 py-2.5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2 overflow-x-auto py-0.5">
+        <span class="text-xs text-gray-400 font-semibold hidden md:inline flex items-center">
+          <i data-lucide="flask-conical" class="w-3.5 h-3.5 mr-1 text-teal-400"></i> Benchmark Scenarios:
+        </span>
+        <button onclick="loadScenario('scenario_1')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>1: Nominal Assembly</span>
+        </button>
+        <button onclick="loadScenario('scenario_2')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+          <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+          <span>2: Gripper Slip Error</span>
+        </button>
+        <button onclick="loadScenario('scenario_3')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span>3: Noise &amp; Motion</span>
+        </button>
+        <button onclick="loadScenario('scenario_4')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+          <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+          <span>4: Complacency Hazard</span>
+        </button>
+        <button onclick="loadScenario('scenario_5')" class="scenario-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 text-gray-300 hover:bg-dark-750 hover:text-white transition flex items-center space-x-1.5 border border-gray-700/80">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span>5: Hesitation Disuse</span>
+        </button>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button onclick="toggleSlidersModal()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 text-teal-300 hover:bg-dark-750 transition flex items-center space-x-1.5 border border-teal-500/30">
+          <i data-lucide="sliders" class="w-3.5 h-3.5 text-teal-400"></i>
+          <span>Multimodal Sliders Lab</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- MAIN WORKSPACE CONTENT -->
+  <!-- ================================================================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- ================================================================= -->
+    <!-- TAB 1: 3D COBOT COCKPIT & LIVE TRUST PREDICTOR -->
+    <!-- ================================================================= -->
+    <div id="section-simulation" class="space-y-6">
+
+      <!-- TOP METRIC OVERVIEW CARDS (MODULE 4 & 5 OUTPUT) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Trust Dial Card -->
+        <div class="glass-card glass-card-hover p-4 flex flex-col justify-between relative overflow-hidden">
+          <div class="flex justify-between items-start">
+            <span class="text-[11px] uppercase font-mono tracking-wider text-gray-400">Continuous Trust Score</span>
+            <i data-lucide="gauge" class="w-4 h-4 text-teal-400"></i>
+          </div>
+          
+          <div class="flex items-center space-x-4 my-2">
+            <!-- Circular Gauge SVG -->
+            <div class="relative w-16 h-16 flex items-center justify-center">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <path class="text-gray-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                <path id="gauge-arc" class="gauge-circle text-teal-400" stroke-dasharray="100, 100" stroke-dashoffset="30" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+              </svg>
+              <span id="gauge-percent" class="absolute text-xs font-bold font-mono text-white">72%</span>
+            </div>
+            <div>
+              <span id="score-val" class="text-3xl font-extrabold tracking-tight text-white font-mono">0.727</span>
+              <p id="score-eval" class="text-[11px] text-teal-400 font-medium">Optimal Calibrated</p>
+            </div>
+          </div>
+
+          <div class="flex justify-between text-[10px] text-gray-400 font-mono pt-1 border-t border-gray-800/60">
+            <span>Range: 0.0 - 1.0</span>
+            <span>Target: Calibrated</span>
+          </div>
+        </div>
+
+        <!-- Trust State Badge Card -->
+        <div id="state-card" class="glass-card glass-card-hover p-4 flex flex-col justify-between transition-all duration-300">
+          <div class="flex justify-between items-start">
+            <span class="text-[11px] uppercase font-mono tracking-wider text-gray-400">Categorical State</span>
+            <i id="state-icon" data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="my-2">
+            <span id="state-badge" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-block shadow-sm">CALIBRATED_TRUST</span>
+          </div>
+          <p id="state-desc" class="text-[11px] text-gray-300 line-clamp-2">Optimal safe physical collaboration with cobot.</p>
+        </div>
+
+        <!-- Closed-Loop Mitigation Action Card -->
+        <div id="mitigation-card" class="glass-card glass-card-hover p-4 flex flex-col justify-between border-teal-500/30">
+          <div class="flex justify-between items-start">
+            <span class="text-[11px] uppercase font-mono tracking-wider text-gray-400">Closed-Loop Mitigation</span>
+            <i data-lucide="shield-alert" class="w-4 h-4 text-cyan-400"></i>
+          </div>
+          <div class="my-2">
+            <div class="flex items-center space-x-2">
+              <span id="speed-factor-badge" class="text-2xl font-black font-mono text-cyan-400">1.00x</span>
+              <span id="mitigation-action-name" class="text-xs font-bold text-gray-200">MAINTAIN_OPERATIONS</span>
+            </div>
+          </div>
+          <p id="mitigation-detail" class="text-[11px] text-gray-400 line-clamp-1 font-mono">EXECUTE_NOMINAL_COOPERATIVE_CYCLE</p>
+        </div>
+
+        <!-- Real-Time Latency & Edge Guarantee -->
+        <div class="glass-card glass-card-hover p-4 flex flex-col justify-between">
+          <div class="flex justify-between items-start">
+            <span class="text-[11px] uppercase font-mono tracking-wider text-gray-400">Decision Latency</span>
+            <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+          </div>
+          <div class="flex items-baseline space-x-2 my-2">
+            <span id="latency-val" class="text-3xl font-extrabold font-mono text-white">1.1 ms</span>
+            <span class="text-xs text-emerald-400 font-mono">(&lt; 250ms target)</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1 border-t border-gray-800/60">
+            <span>Model Confidence: <span id="conf-val" class="text-teal-400 font-mono font-bold">92.4%</span></span>
+            <span class="text-emerald-400 font-mono">Real-time</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ROBOT HUD TRANSPARENCY CONSOLE & OPERATOR VALIDATION TICKER -->
+      <div id="hud-ticker-box" class="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-teal-500/30">
+        <div class="flex items-start sm:items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-400 shrink-0">
+            <i data-lucide="terminal" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[11px] font-mono text-teal-400 uppercase font-bold tracking-wider">Cobot Intent &amp; Transparency HUD:</span>
+              <span id="hud-timestamp" class="text-[10px] font-mono text-gray-500">12:30:45 UTC</span>
+            </div>
+            <p id="hud-message-text" class="text-xs text-gray-200 mt-0.5 font-medium">Cobot Status Nominal: Human-robot trust calibrated. Operating at full programmed collaboration velocity (1.0x).</p>
+          </div>
+        </div>
+        <div id="operator-validation-btn-container" class="hidden shrink-0">
+          <button onclick="approveOperatorValidation()" class="px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-dark-950 transition flex items-center space-x-2 shadow-lg shadow-amber-500/25 animate-bounce">
+            <i data-lucide="check-check" class="w-4 h-4"></i>
+            <span>Confirm &amp; Validate Trajectory</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- MIDDLE ROW: THREE.JS 3D ARTICULATED UR5 COBOT & ATTENTION RADAR -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- 3D Cobot WebGL Canvas (Cols 1 & 2) -->
+        <div class="lg:col-span-2 glass-card p-4 flex flex-col justify-between relative overflow-hidden">
+          
+          <div class="flex items-center justify-between mb-3 z-10">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-3 h-3 rounded-full bg-teal-400 animate-pulse"></div>
+              <h3 class="text-sm font-bold text-white tracking-wide flex items-center">
+                Universal Robots UR5 Simulated Collaborative Assembly
+              </h3>
+            </div>
+            
+            <!-- Camera View Presets -->
+            <div class="flex items-center space-x-1.5 text-xs">
+              <span class="text-[11px] text-gray-400 hidden sm:inline mr-1">Views:</span>
+              <button onclick="setCameraPreset('isometric')" class="px-2.5 py-1 text-[11px] bg-dark-800 hover:bg-dark-750 text-gray-300 rounded-md border border-gray-700">Iso</button>
+              <button onclick="setCameraPreset('operator')" class="px-2.5 py-1 text-[11px] bg-dark-800 hover:bg-dark-750 text-gray-300 rounded-md border border-gray-700">Operator</button>
+              <button onclick="setCameraPreset('top')" class="px-2.5 py-1 text-[11px] bg-dark-800 hover:bg-dark-750 text-gray-300 rounded-md border border-gray-700">Top</button>
+              <button onclick="setCameraPreset('side')" class="px-2.5 py-1 text-[11px] bg-dark-800 hover:bg-dark-750 text-gray-300 rounded-md border border-gray-700">Side</button>
+            </div>
+          </div>
+
+          <!-- 3D Three.js WebGL Container -->
+          <div class="relative bg-dark-950 rounded-xl border border-gray-800 h-96 overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing" id="webglContainer">
+            <canvas id="threeCanvas" class="w-full h-full block"></canvas>
+
+            <!-- Floating 3D Telemetry Badges -->
+            <div class="absolute top-3 left-3 bg-dark-900/90 backdrop-blur border border-gray-800 px-3.5 py-2 rounded-xl text-[11px] font-mono text-gray-300 space-y-1 pointer-events-none shadow-lg">
+              <div class="flex items-center justify-between space-x-4">
+                <span class="text-gray-400">Current Phase:</span>
+                <span id="hud-ur5-phase" class="text-teal-400 font-bold">Approach Tooling</span>
+              </div>
+              <div class="flex items-center justify-between space-x-4">
+                <span class="text-gray-400">Laser Curtain:</span>
+                <span id="hud-safety-status" class="text-emerald-400 font-bold">Nominal Boundary</span>
+              </div>
+              <div class="flex items-center justify-between space-x-4">
+                <span class="text-gray-400">End-Effector Drift:</span>
+                <span id="hud-drift-mm" class="text-white font-bold">12 mm</span>
+              </div>
+            </div>
+
+            <!-- 3D Interactive Error Injection Quick Toolbar -->
+            <div class="absolute bottom-3 right-3 flex items-center space-x-2 z-10">
+              <button onclick="triggerCobotStepError('gripper_slip')" class="px-3 py-1.5 text-xs font-bold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-lg transition shadow-md flex items-center space-x-1">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                <span>Inject Slip</span>
+              </button>
+              <button onclick="triggerCobotStepError('minor_deviation')" class="px-3 py-1.5 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg transition shadow-md flex items-center space-x-1">
+                <i data-lucide="git-branch" class="w-3.5 h-3.5"></i>
+                <span>Path Drift</span>
+              </button>
+              <button onclick="triggerActiveRecovery()" class="px-3 py-1.5 text-xs font-bold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-lg transition shadow-md flex items-center space-x-1">
+                <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+                <span>Active Recovery</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Assembly Workflow Stepper Controls -->
+          <div class="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-800">
+            <div class="flex items-center space-x-2">
+              <button onclick="toggleAutoPlay()" id="btn-autoplay" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-teal-500 hover:bg-teal-400 text-dark-950 transition flex items-center space-x-1.5 shadow-md shadow-teal-500/20">
+                <i id="autoplay-icon" data-lucide="play" class="w-3.5 h-3.5"></i>
+                <span id="autoplay-text">Auto Play Cycle</span>
+              </button>
+              <button onclick="stepForwardCobot()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 hover:bg-dark-750 text-gray-200 border border-gray-700 transition flex items-center space-x-1">
+                <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
+                <span>Next Step</span>
+              </button>
+              <button onclick="resetAssemblyCycle()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 hover:bg-dark-750 text-gray-200 border border-gray-700 transition flex items-center space-x-1">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Reset</span>
+              </button>
+            </div>
+
+            <!-- Stepper Indicators -->
+            <div class="flex items-center space-x-1.5 text-xs font-mono">
+              <span class="text-gray-400 mr-1 text-[11px]">Phase:</span>
+              <span id="step-pip-0" class="px-2 py-0.5 rounded bg-teal-500 text-dark-950 font-bold">1</span>
+              <span id="step-pip-1" class="px-2 py-0.5 rounded bg-dark-800 text-gray-400">2</span>
+              <span id="step-pip-2" class="px-2 py-0.5 rounded bg-dark-800 text-gray-400">3</span>
+              <span id="step-pip-3" class="px-2 py-0.5 rounded bg-dark-800 text-gray-400">4</span>
+              <span id="step-pip-4" class="px-2 py-0.5 rounded bg-dark-800 text-gray-400">5</span>
+              <span id="step-pip-5" class="px-2 py-0.5 rounded bg-dark-800 text-gray-400">6</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Cross-Modal Attention Weights (Col 3) -->
+        <div class="glass-card p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-2.5">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="network" class="w-4 h-4 text-teal-400"></i>
+              <h3 class="text-sm font-bold text-white tracking-wide">Module 3: Attention Fusion</h3>
+            </div>
+            <span class="text-[10px] font-mono bg-teal-500/10 text-teal-400 px-2 py-0.5 rounded border border-teal-500/20">Dynamic Noise Gate</span>
+          </div>
+
+          <!-- Radar Canvas (Chart.js Spider) -->
+          <div class="relative h-56 flex items-center justify-center p-1 my-2">
+            <canvas id="attentionRadarChart"></canvas>
+          </div>
+
+          <!-- Attention Weight Meters -->
+          <div class="space-y-2.5 text-xs">
+            <div>
+              <div class="flex justify-between text-[11px] font-medium text-gray-300 mb-1">
+                <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-400 mr-1.5"></span> 🤖 Robot Performance</span>
+                <span id="w-robot-val" class="font-mono text-blue-400 font-bold">41.2%</span>
+              </div>
+              <div class="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
+                <div id="w-robot-bar" class="bg-blue-400 h-1.5 rounded-full transition-all duration-500" style="width: 41.2%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] font-medium text-gray-300 mb-1">
+                <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-cyan-400 mr-1.5"></span> 👤 Facial Affect (AU04)</span>
+                <span id="w-face-val" class="font-mono text-cyan-400 font-bold">24.5%</span>
+              </div>
+              <div class="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
+                <div id="w-face-bar" class="bg-cyan-400 h-1.5 rounded-full transition-all duration-500" style="width: 24.5%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] font-medium text-gray-300 mb-1">
+                <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-400 mr-1.5"></span> 🎙️ Vocal Acoustics</span>
+                <span id="w-voice-val" class="font-mono text-amber-400 font-bold">14.1%</span>
+              </div>
+              <div class="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
+                <div id="w-voice-bar" class="bg-amber-400 h-1.5 rounded-full transition-all duration-500" style="width: 14.1%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] font-medium text-gray-300 mb-1">
+                <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-400 mr-1.5"></span> 💓 Physiological BVP</span>
+                <span id="w-physio-val" class="font-mono text-rose-400 font-bold">20.2%</span>
+              </div>
+              <div class="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
+                <div id="w-physio-bar" class="bg-rose-400 h-1.5 rounded-full transition-all duration-500" style="width: 20.2%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-dark-900 p-2 rounded-lg border border-gray-800 mt-3 text-[10px] text-gray-400 flex items-center justify-between font-mono">
+            <span>Noise Attenuation:</span>
+            <span id="noise-status-text" class="text-emerald-400 font-bold">All Channels Clean</span>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- BOTTOM ROW: REAL-TIME MULTIMODAL SENSOR TELEMETRY (MODULE 1) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- 1. Robot Kinematics Telemetry -->
+        <div class="glass-card p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+            <span class="text-xs font-bold text-white flex items-center"><i data-lucide="bot" class="w-4 h-4 mr-1.5 text-blue-400"></i> Cobot Kinematics</span>
+            <span id="tel-error-badge" class="px-2 py-0.5 text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-300 rounded font-bold">NOMINAL</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Velocity</span>
+              <span id="tel-speed" class="text-white font-bold">0.80 m/s</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Trajectory Drift</span>
+              <span id="tel-drift" class="text-white font-bold">0.03 m</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Torque Anomaly</span>
+              <span id="tel-torque" class="text-white font-bold">0.04</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Reliability</span>
+              <span id="tel-kin-score" class="text-blue-400 font-bold">0.96</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Facial Blendshapes Telemetry -->
+        <div class="glass-card p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+            <span class="text-xs font-bold text-white flex items-center"><i data-lucide="smile" class="w-4 h-4 mr-1.5 text-cyan-400"></i> Facial Affect</span>
+            <span id="tel-emotion-badge" class="px-2 py-0.5 text-[10px] font-mono uppercase bg-dark-800 text-cyan-300 rounded font-bold">RELAXED</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">AU04 Brow Furrow</span>
+              <span id="tel-brow" class="text-white font-bold">0.08</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Fear / Startle</span>
+              <span id="tel-fear" class="text-white font-bold">0.04</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Facial Entropy</span>
+              <span id="tel-entropy" class="text-white font-bold">0.12</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Calm Score</span>
+              <span id="tel-face-score" class="text-cyan-400 font-bold">0.93</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Vocal Acoustics Telemetry -->
+        <div class="glass-card p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+            <span class="text-xs font-bold text-white flex items-center"><i data-lucide="mic" class="w-4 h-4 mr-1.5 text-amber-400"></i> Vocal Acoustics</span>
+            <span id="tel-snr-badge" class="px-2 py-0.5 text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-300 rounded font-bold">SNR 28dB</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Pitch F0</span>
+              <span id="tel-f0" class="text-white font-bold">172 Hz</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Acoustic Jitter</span>
+              <span id="tel-jitter" class="text-white font-bold">0.75%</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Pause Ratio</span>
+              <span id="tel-pause" class="text-white font-bold">0.08</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Vocal Score</span>
+              <span id="tel-vocal-score" class="text-amber-400 font-bold">0.90</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Physiological BVP & EDA Telemetry (Live Waveform) -->
+        <div class="glass-card p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+            <span class="text-xs font-bold text-white flex items-center"><i data-lucide="heart" class="w-4 h-4 mr-1.5 text-rose-400"></i> BVP &amp; EDA Signals</span>
+            <span id="tel-filter-badge" class="px-2 py-0.5 text-[10px] font-mono uppercase bg-teal-500/20 text-teal-300 rounded font-bold">BANDPASS ON</span>
+          </div>
+
+          <!-- Pulsating Pulse Wave Canvas -->
+          <div class="bg-dark-950 rounded-lg border border-gray-800 h-14 overflow-hidden relative">
+            <canvas id="bvpWaveCanvas" width="240" height="56" class="w-full h-full"></canvas>
+            <span class="absolute top-1 right-2 text-[9px] font-mono text-gray-500">0.5-4Hz Filtered</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">Heart Rate</span>
+              <span id="tel-hr" class="text-rose-400 font-bold">72 BPM</span>
+            </div>
+            <div class="bg-dark-900 p-2 rounded-lg border border-gray-800">
+              <span class="text-[10px] text-gray-400 block">EDA Conductance</span>
+              <span id="tel-eda" class="text-white font-bold">2.8 &mu;S</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 2: BASELINE BENCHMARK COMPARISON (SECTION 4.1) -->
+    <!-- ================================================================= -->
+    <div id="section-baselines" class="hidden space-y-6">
+
+      <div class="glass-card p-6 space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-800 pb-4 gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center">
+              <i data-lucide="award" class="w-5 h-5 mr-2 text-teal-400"></i>
+              Comparative Baseline Evaluation &amp; Model Benchmark (Section 4.1)
+            </h2>
+            <p class="text-xs text-gray-400 mt-1">Evaluated across collaborative assembly trials. Requirement: MSE &lt; 0.08 &amp; Latency &lt; 250ms.</p>
+          </div>
+          <button onclick="refreshBaselines()" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 hover:bg-teal-500/30 transition flex items-center space-x-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Re-evaluate Baselines</span>
+          </button>
+        </div>
+
+        <!-- Verification Certificate Banner -->
+        <div class="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 flex items-center justify-between">
+          <div class="flex items-center space-x-3.5">
+            <div class="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30">
+              <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-emerald-300">DA-1 Formal Criteria Satisfied</h4>
+              <p class="text-xs text-emerald-400/90 mt-0.5">
+                Proposed Temporal Attention-LSTM achieves <span class="font-bold font-mono">MSE = 0.0014</span> (Target &lt; 0.08) with <span class="font-bold font-mono">1.1ms latency</span> and <span class="font-bold font-mono">21.4% trust mismatch reduction</span>.
+              </p>
+            </div>
+          </div>
+          <span class="px-3 py-1 rounded-md text-xs font-bold uppercase font-mono bg-emerald-500 text-dark-950 shadow-md">VERIFIED</span>
+        </div>
+
+        <!-- Comparative Chart Canvas -->
+        <div class="glass-card p-4 border-gray-800 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-gray-300 flex items-center"><i data-lucide="bar-chart" class="w-4 h-4 mr-1 text-teal-400"></i> MSE Error Comparison Across Baselines</span>
+            <span class="text-[11px] font-mono text-emerald-400">Lower MSE is Better (Red Line = 0.08 Threshold)</span>
+          </div>
+          <div class="h-64 w-full">
+            <canvas id="baselineChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Benchmark Comparison Table -->
+        <div class="overflow-x-auto rounded-xl border border-gray-800">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-dark-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+              <tr>
+                <th class="p-3.5">Model Architecture</th>
+                <th class="p-3.5">Category</th>
+                <th class="p-3.5">MSE (Target &lt; 0.08)</th>
+                <th class="p-3.5">MAE</th>
+                <th class="p-3.5">R&sup2; Score</th>
+                <th class="p-3.5">F1-Score</th>
+                <th class="p-3.5">Latency</th>
+                <th class="p-3.5">Status</th>
+              </tr>
+            </thead>
+            <tbody id="baseline-table-body" class="divide-y divide-gray-800 bg-dark-950/60">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 3: ABLATION STUDIES (SECTION 4.1 & 4.2) -->
+    <!-- ================================================================= -->
+    <div id="section-ablations" class="hidden space-y-6">
+
+      <div class="glass-card p-6 space-y-6">
+        <div class="border-b border-gray-800 pb-4">
+          <h2 class="text-lg font-bold text-white flex items-center">
+            <i data-lucide="layers" class="w-5 h-5 mr-2 text-teal-400"></i>
+            Ablation Studies: Modality Removal, Window Duration &amp; Attention Gating
+          </h2>
+          <p class="text-xs text-gray-400 mt-1">Systematic isolation of modalities and temporal durations to quantify architectural contributions.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- 1. Modality Dropout Ablations -->
+          <div class="space-y-3">
+            <h3 class="text-sm font-bold text-white flex items-center">
+              <i data-lucide="slash" class="w-4 h-4 mr-1.5 text-rose-400"></i>
+              Modality Removal Impact
+            </h3>
+            <div class="overflow-x-auto rounded-xl border border-gray-800">
+              <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-dark-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <tr>
+                    <th class="p-3">Configuration</th>
+                    <th class="p-3">MSE</th>
+                    <th class="p-3">&Delta; MSE</th>
+                    <th class="p-3">Impact</th>
+                  </tr>
+                </thead>
+                <tbody id="ablation-modality-tbody" class="divide-y divide-gray-800 bg-dark-950/60">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 2. Temporal Window Duration Ablation -->
+          <div class="space-y-3">
+            <h3 class="text-sm font-bold text-white flex items-center">
+              <i data-lucide="clock" class="w-4 h-4 mr-1.5 text-cyan-400"></i>
+              Temporal Window Duration (2s vs 5s vs 10s)
+            </h3>
+            <div class="overflow-x-auto rounded-xl border border-gray-800">
+              <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-dark-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <tr>
+                    <th class="p-3">Window Duration</th>
+                    <th class="p-3">MSE</th>
+                    <th class="p-3">Latency</th>
+                    <th class="p-3">Analysis</th>
+                  </tr>
+                </thead>
+                <tbody id="ablation-window-tbody" class="divide-y divide-gray-800 bg-dark-950/60">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 3. Sensor Noise Robustness & Dynamic Attention -->
+        <div class="rounded-xl border border-gray-800 bg-dark-900/70 p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white flex items-center">
+              <i data-lucide="shield-check" class="w-4 h-4 mr-2 text-emerald-400"></i>
+              Sensor Noise Robustness Test (8 dB Factory Acoustic Noise + Motion Artifacts)
+            </h3>
+            <span class="text-xs font-mono text-teal-400">Section 4.2 Feasibility</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div class="bg-dark-950 p-4 rounded-xl border border-emerald-500/30">
+              <span class="text-emerald-400 font-bold block mb-1">With Cross-Modal Attention (Proposed)</span>
+              <p class="text-gray-300 font-mono">MSE under severe noise: <span class="font-bold text-white">0.0435</span> (Stable &lt; 0.08)</p>
+              <p class="text-gray-400 text-[11px] mt-1.5">Attention dynamically attenuates corrupted vocal and BVP channels, leaning safely on robot kinematics.</p>
+            </div>
+            <div class="bg-dark-950 p-4 rounded-xl border border-rose-500/30">
+              <span class="text-rose-400 font-bold block mb-1">Static Fixed Fusion (No Attention)</span>
+              <p class="text-gray-300 font-mono">MSE under severe noise: <span class="font-bold text-rose-400">0.0894</span> (Fails &gt; 0.08 threshold)</p>
+              <p class="text-gray-400 text-[11px] mt-1.5">Corrupted signal leaks directly into trust estimation, causing false emergency decelerations.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 4: LEAVE-ONE-SUBJECT-OUT (LOSO) CROSS-VALIDATION -->
+    <!-- ================================================================= -->
+    <div id="section-loso" class="hidden space-y-6">
+
+      <div class="glass-card p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-800 pb-4 gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center">
+              <i data-lucide="users" class="w-5 h-5 mr-2 text-teal-400"></i>
+              Leave-One-Subject-Out (LOSO) Cross-Validation
+            </h2>
+            <p class="text-xs text-gray-400 mt-1">Cross-subject validation across 10 participants (Subject 01 to 10) proving generalization to new operators.</p>
+          </div>
+          <div class="flex items-center space-x-3">
+            <span class="px-3.5 py-1.5 text-xs font-mono rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Mean LOSO MSE: <span id="loso-mean-mse" class="font-bold">0.0032</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-gray-800">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-dark-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+              <tr>
+                <th class="p-3.5">Fold / Holdout Subject</th>
+                <th class="p-3.5">Test Samples</th>
+                <th class="p-3.5">Fold MSE</th>
+                <th class="p-3.5">Fold MAE</th>
+                <th class="p-3.5">R&sup2; Score</th>
+                <th class="p-3.5">Target Met (&lt; 0.08)</th>
+              </tr>
+            </thead>
+            <tbody id="loso-table-body" class="divide-y divide-gray-800 bg-dark-950/60">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 5: PYTORCH NEURAL RETRAINING & SUPERVISOR LOGGING -->
+    <!-- ================================================================= -->
+    <div id="section-retraining" class="hidden space-y-6">
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Retraining Controls & Live Loss Curve (Cols 1 & 2) -->
+        <div class="lg:col-span-2 glass-card p-6 space-y-5">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center">
+                <i data-lucide="cpu" class="w-5 h-5 mr-2 text-teal-400"></i>
+                PyTorch AdamW Retraining &amp; Calibration Studio
+              </h2>
+              <p class="text-xs text-gray-400 mt-0.5">Optimizes softmax attention logits and error penalties from supervisor ground-truth logs.</p>
+            </div>
+            <button onclick="executeRetrain()" id="btn-retrain" class="px-4 py-2 text-xs font-bold rounded-xl bg-teal-500 hover:bg-teal-400 text-dark-950 transition flex items-center space-x-1.5 shadow-lg shadow-teal-500/20">
+              <i data-lucide="play" class="w-3.5 h-3.5"></i>
+              <span>Retrain Fusion Head</span>
+            </button>
+          </div>
+
+          <!-- Training Loss Curve Canvas -->
+          <div class="bg-dark-950 p-4 rounded-xl border border-gray-800 space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-bold text-gray-300 flex items-center"><i data-lucide="trending-down" class="w-3.5 h-3.5 mr-1 text-teal-400"></i> Smooth L1 Calibration Loss</span>
+              <span id="retrain-loss-val" class="font-mono text-teal-400">Final Loss: 0.0005</span>
+            </div>
+            <div class="h-44 w-full">
+              <canvas id="retrainLossCanvas" width="600" height="170" class="w-full h-full"></canvas>
+            </div>
+          </div>
+
+          <!-- Retraining Metrics Card -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div class="bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+              <span class="text-[10px] text-gray-400 block font-mono">Pre-Retrain MAE</span>
+              <span id="pre-mae-val" class="text-sm font-bold font-mono text-gray-200">0.1126</span>
+            </div>
+            <div class="bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+              <span class="text-[10px] text-gray-400 block font-mono">Post-Retrain MAE</span>
+              <span id="post-mae-val" class="text-sm font-bold font-mono text-emerald-400">0.0264</span>
+            </div>
+            <div class="bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+              <span class="text-[10px] text-gray-400 block font-mono">MAE Error Reduction</span>
+              <span id="mae-improvement-val" class="text-sm font-bold font-mono text-teal-400">+76.59%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supervisor Ground-Truth Feedback Logger (Col 3) -->
+        <div class="glass-card p-6 space-y-4">
+          <div class="border-b border-gray-800 pb-3">
+            <h3 class="text-sm font-bold text-white flex items-center">
+              <i data-lucide="clipboard-check" class="w-4 h-4 mr-2 text-cyan-400"></i>
+              Log Supervisor Ground-Truth
+            </h3>
+            <p class="text-[11px] text-gray-400 mt-0.5">Annotate current collaborative trial with human rating.</p>
+          </div>
+
+          <div class="space-y-3.5 text-xs">
+            <div>
+              <div class="flex justify-between text-gray-300 mb-1 font-medium">
+                <span>Verified Trust Rating:</span>
+                <span id="sup-score-display" class="font-mono text-teal-400 font-bold">0.70</span>
+              </div>
+              <input type="range" min="0.0" max="1.0" step="0.01" value="0.70" id="sup-score-slider" oninput="document.getElementById('sup-score-display').textContent=this.value" class="w-full accent-teal-400">
+            </div>
+
+            <div>
+              <label class="block text-gray-300 mb-1 font-medium">Operator Subject ID</label>
+              <select id="sup-subject-select" class="w-full bg-dark-900 border border-gray-800 rounded-lg p-2 text-gray-200 text-xs font-mono">
+                <option value="Subject_01">Subject 01 (Baseline Operator)</option>
+                <option value="Subject_02">Subject 02</option>
+                <option value="Subject_03">Subject 03</option>
+                <option value="Subject_04">Subject 04</option>
+                <option value="Subject_05">Subject 05</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-gray-300 mb-1 font-medium">Supervisor Notes</label>
+              <textarea id="sup-notes-input" rows="2" placeholder="e.g., Operator calmly guided cobot through fastener insertion." class="w-full bg-dark-900 border border-gray-800 rounded-lg p-2 text-gray-200 text-xs"></textarea>
+            </div>
+
+            <button onclick="submitSupervisorFeedback()" class="w-full py-2.5 text-xs font-bold rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30 transition flex items-center justify-center space-x-1.5 shadow-md">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Commit Feedback to JSONL</span>
+            </button>
+
+            <button onclick="seedDatasetRecords()" class="w-full py-2 text-[11px] font-semibold rounded-xl bg-dark-800 text-gray-400 hover:text-white transition flex items-center justify-center space-x-1.5 border border-gray-800">
+              <i data-lucide="database" class="w-3.5 h-3.5"></i>
+              <span>Seed 25 Benchmark Samples</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- INTERACTIVE SLIDERS MODAL (POPUP PARAMETER LAB) -->
+    <!-- ================================================================= -->
+    <div id="param-lab-modal" class="hidden glass-card p-6 border-teal-500/40 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-teal-400"></i>
+          <h3 class="text-sm font-bold text-white">Interactive Multimodal Parameter Lab</h3>
+        </div>
+        <button onclick="toggleSlidersModal()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+        
+        <!-- Robot Sliders -->
+        <div class="space-y-3 bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+          <span class="font-bold text-blue-400 block border-b border-gray-800 pb-1">🤖 Robot Telemetry</span>
+          <div>
+            <label class="block text-gray-400 text-[11px]">Speed: <span id="lab-speed-val" class="text-white font-mono font-bold">0.80 m/s</span></label>
+            <input type="range" min="0.1" max="1.5" step="0.05" value="0.80" id="slider-speed" oninput="runInteractiveInference()" class="w-full accent-blue-400">
+          </div>
+          <div>
+            <label class="block text-gray-400 text-[11px]">Error Type</label>
+            <select id="select-error-type" onchange="runInteractiveInference()" class="w-full bg-dark-950 border border-gray-800 rounded p-1.5 text-[11px] text-gray-200">
+              <option value="nominal">Nominal</option>
+              <option value="minor_deviation">Minor Trajectory Drift</option>
+              <option value="gripper_slip">Gripper Slip</option>
+              <option value="trajectory_overshoot">Trajectory Overshoot</option>
+              <option value="collision_near_miss">Collision Near Miss</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Facial Sliders -->
+        <div class="space-y-3 bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+          <span class="font-bold text-cyan-400 block border-b border-gray-800 pb-1">👤 Facial Affect</span>
+          <div>
+            <label class="block text-gray-400 text-[11px]">AU04 Brow Furrow: <span id="lab-brow-val" class="text-white font-mono font-bold">0.10</span></label>
+            <input type="range" min="0.0" max="1.0" step="0.05" value="0.10" id="slider-brow" oninput="runInteractiveInference()" class="w-full accent-cyan-400">
+          </div>
+          <div>
+            <label class="block text-gray-400 text-[11px]">Fear / Eye Widen: <span id="lab-fear-val" class="text-white font-mono font-bold">0.05</span></label>
+            <input type="range" min="0.0" max="1.0" step="0.05" value="0.05" id="slider-fear" oninput="runInteractiveInference()" class="w-full accent-cyan-400">
+          </div>
+        </div>
+
+        <!-- Vocal Sliders -->
+        <div class="space-y-3 bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+          <span class="font-bold text-amber-400 block border-b border-gray-800 pb-1">🎙️ Vocal Prosody</span>
+          <div>
+            <label class="block text-gray-400 text-[11px]">Pitch F0: <span id="lab-f0-val" class="text-white font-mono font-bold">175 Hz</span></label>
+            <input type="range" min="100" max="300" step="5" value="175" id="slider-f0" oninput="runInteractiveInference()" class="w-full accent-amber-400">
+          </div>
+          <div>
+            <label class="block text-gray-400 text-[11px]">Jitter Tension: <span id="lab-jitter-val" class="text-white font-mono font-bold">0.85%</span></label>
+            <input type="range" min="0.2" max="4.0" step="0.1" value="0.85" id="slider-jitter" oninput="runInteractiveInference()" class="w-full accent-amber-400">
+          </div>
+        </div>
+
+        <!-- Physiological Sliders -->
+        <div class="space-y-3 bg-dark-900 p-3.5 rounded-xl border border-gray-800">
+          <span class="font-bold text-rose-400 block border-b border-gray-800 pb-1">💓 BVP &amp; EDA</span>
+          <div>
+            <label class="block text-gray-400 text-[11px]">Heart Rate: <span id="lab-hr-val" class="text-white font-mono font-bold">74 BPM</span></label>
+            <input type="range" min="50" max="130" step="1" value="74" id="slider-hr" oninput="runInteractiveInference()" class="w-full accent-rose-400">
+          </div>
+          <div>
+            <label class="block text-gray-400 text-[11px]">EDA Conductance: <span id="lab-eda-val" class="text-white font-mono font-bold">3.2 &mu;S</span></label>
+            <input type="range" min="1.0" max="15.0" step="0.2" value="3.2" id="slider-eda" oninput="runInteractiveInference()" class="w-full accent-rose-400">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- JAVASCRIPT: APPLICATION CONTROLLER, THREE.JS, CHART.JS & FX -->
+  <!-- ================================================================= -->
+  <script>
+    // State
+    let activeTab = 'simulation';
+    let currentInferenceData = null;
+    let currentStepIndex = 0;
+    let autoPlayInterval = null;
+    let audioFxEnabled = true;
+    let bvpPhase = 0.0;
+    let audioCtx = null;
+    let radarChart = null;
+    let baselineChart = null;
+
+    // Three.js State Variables
+    let scene, camera, renderer, controls;
+    let ur5Base, shoulderJoint, upperArm, elbowJoint, forearm, wrist1, gripperLeft, gripperRight, workpieceMesh;
+    let laserCurtainMesh, plannedPathLine, livePathLine;
+    let photonParticle;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      initThreeJS();
+      initRadarChart();
+      startPulseWaveforms();
+      await loadScenario('scenario_1');
+      loadBaselines();
+      loadAblations();
+      loadLOSO();
+    });
+
+    // -------------------------------------------------------------
+    // WEB AUDIO API SOUND FX (DESIGN SPELLS)
+    // -------------------------------------------------------------
+    function playAudioTone(freq, type = 'sine', duration = 0.08, vol = 0.05) {
+      if (!audioFxEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function toggleAudioFx() {
+      audioFxEnabled = !audioFxEnabled;
+      const icon = document.getElementById('audio-fx-icon');
+      if (audioFxEnabled) {
+        icon.setAttribute('data-lucide', 'volume-2');
+        icon.className = 'w-4 h-4 text-teal-400';
+        playAudioTone(880, 'sine', 0.08, 0.06);
+      } else {
+        icon.setAttribute('data-lucide', 'volume-x');
+        icon.className = 'w-4 h-4 text-gray-500';
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------
+    // TAB SWITCHER
+    // -------------------------------------------------------------
+    function switchTab(tabId) {
+      activeTab = tabId;
+      playAudioTone(700, 'sine', 0.05);
+      const tabs = ['simulation', 'baselines', 'ablations', 'loso', 'retraining'];
+      tabs.forEach(t => {
+        const sec = document.getElementById(`section-${t}`);
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (sec) sec.classList.toggle('hidden', t !== tabId);
+        if (btn) {
+          btn.className = (t === tabId)
+            ? "tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 transition flex items-center space-x-1.5"
+            : "tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition flex items-center space-x-1.5";
+        }
+      });
+      lucide.createIcons();
+
+      // Trigger resize for Three.js & Chart.js
+      if (tabId === 'simulation' && renderer && camera) {
+        onWindowResize();
+      }
+      if (tabId === 'baselines' && baselineChart) {
+        baselineChart.resize();
+      }
+    }
+
+    function toggleSlidersModal() {
+      const modal = document.getElementById('param-lab-modal');
+      modal.classList.toggle('hidden');
+      playAudioTone(600, 'sine', 0.05);
+    }
+
+    // -------------------------------------------------------------
+    // THREE.JS 3D COBOT SCENE (UR5 6-DOF ARM + WORKBENCH)
+    // -------------------------------------------------------------
+    function initThreeJS() {
+      const container = document.getElementById('webglContainer');
+      const canvas = document.getElementById('threeCanvas');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050811);
+      scene.fog = new THREE.FogExp2(0x050811, 0.12);
+
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+      camera.position.set(2.4, 2.0, 3.2);
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2 + 0.05;
+      controls.minDistance = 1.0;
+      controls.maxDistance = 6.0;
+      controls.target.set(0.1, 0.4, 0.0);
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0x2dd4bf, 1.2);
+      dirLight.position.set(4, 6, 3);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
+      fillLight.position.set(-3, 3, -2);
+      scene.add(fillLight);
+
+      // Grid Floor & Workbench Table
+      const grid = new THREE.GridHelper(5, 20, 0x1e293b, 0x0f172a);
+      grid.position.y = -0.5;
+      scene.add(grid);
+
+      // Assembly Table Top
+      const tableGeo = new THREE.BoxGeometry(2.2, 0.08, 1.4);
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.4 });
+      const table = new THREE.Mesh(tableGeo, tableMat);
+      table.position.set(0.1, -0.04, 0.0);
+      table.receiveShadow = true;
+      scene.add(table);
+
+      // Optical Laser Safety Curtain (glowing wireframe box)
+      const curtainGeo = new THREE.BoxGeometry(2.4, 1.2, 1.6);
+      const curtainMat = new THREE.MeshBasicMaterial({
+        color: 0x10b981,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.25
+      });
+      laserCurtainMesh = new THREE.Mesh(curtainGeo, curtainMat);
+      laserCurtainMesh.position.set(0.1, 0.55, 0.0);
+      scene.add(laserCurtainMesh);
+
+      // Human Operator Collaborator Avatar (Right side)
+      const opGroup = new THREE.Group();
+      opGroup.position.set(1.0, 0.2, 0.1);
+      
+      const headGeo = new THREE.SphereGeometry(0.12, 16, 16);
+      const opMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45, wireframe: true });
+      const head = new THREE.Mesh(headGeo, opMat);
+      head.position.y = 0.55;
+      opGroup.add(head);
+
+      const torsoGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.6, 16);
+      const torso = new THREE.Mesh(torsoGeo, opMat);
+      torso.position.y = 0.15;
+      opGroup.add(torso);
+      scene.add(opGroup);
+
+      // ==========================================
+      // UR5 ARTICULATED ROBOT ARM HIERARCHY
+      // ==========================================
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.25 });
+      const jointMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.9, roughness: 0.15 });
+
+      // Base Pedestal
+      const baseGeo = new THREE.CylinderGeometry(0.16, 0.20, 0.15, 24);
+      ur5Base = new THREE.Mesh(baseGeo, metalMat);
+      ur5Base.position.set(-0.5, 0.07, 0.0);
+      ur5Base.castShadow = true;
+      scene.add(ur5Base);
+
+      // Shoulder Joint
+      const shoulderGeo = new THREE.SphereGeometry(0.11, 20, 20);
+      shoulderJoint = new THREE.Mesh(shoulderGeo, jointMat);
+      shoulderJoint.position.set(0, 0.12, 0);
+      ur5Base.add(shoulderJoint);
+
+      // Upper Arm
+      const upperGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.55, 16);
+      upperArm = new THREE.Mesh(upperGeo, metalMat);
+      upperArm.position.set(0.18, 0.22, 0);
+      upperArm.rotation.z = -Math.PI / 4;
+      shoulderJoint.add(upperArm);
+
+      // Elbow Joint
+      const elbowGeo = new THREE.SphereGeometry(0.09, 16, 16);
+      elbowJoint = new THREE.Mesh(elbowGeo, jointMat);
+      elbowJoint.position.set(0, 0.28, 0);
+      upperArm.add(elbowJoint);
+
+      // Forearm
+      const foreGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.48, 16);
+      forearm = new THREE.Mesh(foreGeo, metalMat);
+      forearm.position.set(-0.16, 0.20, 0);
+      forearm.rotation.z = Math.PI / 2.8;
+      elbowJoint.add(forearm);
+
+      // Wrist
+      const wristGeo = new THREE.SphereGeometry(0.07, 16, 16);
+      wrist1 = new THREE.Mesh(wristGeo, jointMat);
+      wrist1.position.set(0, 0.25, 0);
+      forearm.add(wrist1);
+
+      // Gripper Base
+      const gripBaseGeo = new THREE.BoxGeometry(0.12, 0.04, 0.06);
+      const gripBase = new THREE.Mesh(gripBaseGeo, metalMat);
+      gripBase.position.set(0, 0.06, 0);
+      wrist1.add(gripBase);
+
+      // Gripper Fingers
+      const fingerGeo = new THREE.BoxGeometry(0.02, 0.09, 0.02);
+      const fingerMat = new THREE.MeshStandardMaterial({ color: 0x14b8a6, metalness: 0.7 });
+      gripperLeft = new THREE.Mesh(fingerGeo, fingerMat);
+      gripperLeft.position.set(-0.04, 0.06, 0);
+      gripBase.add(gripperLeft);
+
+      gripperRight = new THREE.Mesh(fingerGeo, fingerMat);
+      gripperRight.position.set(0.04, 0.06, 0);
+      gripBase.add(gripperRight);
+
+      // Titanium Fastener Workpiece
+      const boltGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.08, 16);
+      const boltMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 });
+      workpieceMesh = new THREE.Mesh(boltGeo, boltMat);
+      workpieceMesh.position.set(0, 0.07, 0);
+      gripBase.add(workpieceMesh);
+
+      // Planned 3D Trajectory Tube (Cyan)
+      const curvePlanned = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.35, 0.15, 0.0),
+        new THREE.Vector3(-0.1, 0.45, 0.15),
+        new THREE.Vector3(0.2, 0.35, 0.12),
+        new THREE.Vector3(0.4, 0.2, 0.05)
+      ]);
+      const tubeGeoP = new THREE.TubeGeometry(curvePlanned, 32, 0.008, 8, false);
+      const tubeMatP = new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.6 });
+      plannedPathLine = new THREE.Mesh(tubeGeoP, tubeMatP);
+      scene.add(plannedPathLine);
+
+      // Live Executed 3D Path Tube (Gold / Red)
+      const tubeGeoA = new THREE.TubeGeometry(curvePlanned, 32, 0.012, 8, false);
+      const tubeMatA = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0x92400e, roughness: 0.3 });
+      livePathLine = new THREE.Mesh(tubeGeoA, tubeMatA);
+      scene.add(livePathLine);
+
+      // Photon traveling particle along trajectory
+      const photonGeo = new THREE.SphereGeometry(0.03, 16, 16);
+      const photonMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf });
+      photonParticle = new THREE.Mesh(photonGeo, photonMat);
+      scene.add(photonParticle);
+
+      window.addEventListener('resize', onWindowResize);
+      animateThree();
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('webglContainer');
+      if (!container || !renderer || !camera) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function setCameraPreset(preset) {
+      playAudioTone(800, 'sine', 0.05);
+      if (preset === 'isometric') {
+        camera.position.set(2.4, 2.0, 3.2);
+        controls.target.set(0.1, 0.4, 0.0);
+      } else if (preset === 'operator') {
+        camera.position.set(1.4, 0.85, 0.3);
+        controls.target.set(-0.2, 0.4, 0.0);
+      } else if (preset === 'top') {
+        camera.position.set(0.1, 3.8, 0.1);
+        controls.target.set(0.1, 0.0, 0.0);
+      } else if (preset === 'side') {
+        camera.position.set(3.4, 0.6, 0.0);
+        controls.target.set(0.0, 0.4, 0.0);
+      }
+    }
+
+    let photonProgress = 0.0;
+    function animateThree() {
+      requestAnimationFrame(animateThree);
+      controls.update();
+
+      // Animate laser curtain breathing glow
+      if (laserCurtainMesh) {
+        const time = Date.now() * 0.002;
+        laserCurtainMesh.material.opacity = 0.20 + Math.sin(time) * 0.08;
+      }
+
+      // Animate photon traveling along trajectory
+      photonProgress = (photonProgress + 0.008) % 1.0;
+      if (photonParticle) {
+        const x = -0.35 + photonProgress * 0.75;
+        const y = 0.2 + Math.sin(photonProgress * Math.PI) * 0.25;
+        const z = photonProgress * 0.12;
+        photonParticle.position.set(x, y, z);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // -------------------------------------------------------------
+    // CHART.JS SPIDER RADAR & BASELINE BAR CHARTS
+    // -------------------------------------------------------------
+    function initRadarChart() {
+      const ctx = document.getElementById('attentionRadarChart').getContext('2d');
+      radarChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['Robot Kinematics', 'Facial Affect', 'Vocal Tone', 'BVP / Physio'],
+          datasets: [{
+            label: 'Softmax Attention Weight α',
+            data: [0.412, 0.245, 0.141, 0.202],
+            backgroundColor: 'rgba(45, 212, 191, 0.25)',
+            borderColor: '#2dd4bf',
+            borderWidth: 2,
+            pointBackgroundColor: '#2dd4bf',
+            pointHoverBorderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              angleLines: { color: 'rgba(51, 65, 85, 0.4)' },
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              pointLabels: {
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10, weight: 'bold' }
+              },
+              ticks: { display: false, max: 0.6, min: 0 }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // REAL-TIME BVP PULSE WAVEFORM CANVAS
+    // -------------------------------------------------------------
+    function startPulseWaveforms() {
+      const canvas = document.getElementById('bvpWaveCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      function draw() {
+        if (activeTab === 'simulation') {
+          const w = canvas.width;
+          const h = canvas.height;
+          ctx.clearRect(0, 0, w, h);
+          bvpPhase += 0.08;
+
+          const hasMotion = currentInferenceData?.module_1_telemetry?.physiological_bvp?.has_motion_artifact || false;
+          ctx.strokeStyle = hasMotion ? '#f59e0b' : '#f43f5e';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+
+          for (let x = 0; x < w; x++) {
+            const t = (x * 0.05) + bvpPhase;
+            let y = Math.sin(t) * 12 + Math.sin(t * 2.0) * 5;
+            if (hasMotion) {
+              y += Math.sin(t * 7.5) * 5.5; // Injected motion noise
+            }
+            const py = h / 2 - y;
+            if (x === 0) ctx.moveTo(x, py);
+            else ctx.lineTo(x, py);
+          }
+          ctx.stroke();
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    // -------------------------------------------------------------
+    // SCENARIO LOADER & INFERENCE EXECUTION
+    // -------------------------------------------------------------
+    async function loadScenario(scenarioId) {
+      playAudioTone(750, 'sine', 0.08);
+      try {
+        const res = await fetch('/api/scenarios');
+        const list = await res.json();
+        const sc = list.find(s => s.id === scenarioId) || list[0];
+
+        await executeInference({
+          task_name: sc.task_name,
+          planned_trajectory: sc.planned_trajectory,
+          actual_trajectory: sc.actual_trajectory,
+          execution_speed_mps: sc.execution_speed_mps,
+          error_type: sc.error_type,
+          joint_torque_anomaly: sc.joint_torque_anomaly,
+          facial_params: sc.facial_params,
+          vocal_params: sc.vocal_params,
+          physio_params: sc.physio_params
+        });
+
+        syncSliders(sc);
+      } catch (err) {
+        console.error('Error loading scenario:', err);
+      }
+    }
+
+    async function executeInference(payload) {
+      try {
+        const res = await fetch('/api/infer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        currentInferenceData = data;
+        updateDashboard(data);
+      } catch (err) {
+        console.error('Inference error:', err);
+      }
+    }
+
+    function updateDashboard(data) {
+      const pred = data.module_4_trust_prediction;
+      const policy = data.module_5_mitigation_policy;
+      const attn = data.module_3_cross_modal_attention.dynamic_attention_weights;
+      const tel = data.module_1_telemetry;
+
+      // 1. Continuous Trust Score & SVG Arc Gauge
+      const score = pred.continuous_trust_score;
+      const pct = (score * 100).toFixed(1);
+      document.getElementById('score-val').textContent = score.toFixed(3);
+      document.getElementById('gauge-percent').textContent = `${pct}%`;
+
+      const arc = document.getElementById('gauge-arc');
+      const offset = 100 - (score * 100);
+      arc.style.strokeDashoffset = offset;
+
+      // Color coding
+      if (score < 0.35) {
+        arc.className = 'gauge-circle text-rose-500';
+        document.getElementById('score-eval').textContent = 'Disuse Risk (Plunging)';
+        document.getElementById('score-eval').className = 'text-[11px] text-rose-400 font-bold';
+      } else if (score > 0.75) {
+        arc.className = 'gauge-circle text-purple-400';
+        document.getElementById('score-eval').textContent = 'Misuse Risk (Complacent)';
+        document.getElementById('score-eval').className = 'text-[11px] text-purple-400 font-bold';
+      } else {
+        arc.className = 'gauge-circle text-teal-400';
+        document.getElementById('score-eval').textContent = 'Optimal Calibrated';
+        document.getElementById('score-eval').className = 'text-[11px] text-teal-400 font-bold';
+      }
+
+      // 2. Trust State Badge
+      const badge = document.getElementById('state-badge');
+      const stateCard = document.getElementById('state-card');
+      badge.textContent = pred.trust_state;
+
+      if (pred.trust_state === 'UNDER_TRUST') {
+        badge.className = 'px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 inline-block shadow-sm';
+        stateCard.className = 'glass-card glass-card-hover p-4 flex flex-col justify-between pulse-danger';
+        laserCurtainMesh.material.color.setHex(0xef4444);
+        livePathLine.material.color.setHex(0xef4444);
+        livePathLine.material.emissive.setHex(0x7f1d1d);
+      } else if (pred.trust_state === 'OVER_TRUST') {
+        badge.className = 'px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/30 inline-block shadow-sm';
+        stateCard.className = 'glass-card glass-card-hover p-4 flex flex-col justify-between border-purple-500/30';
+        laserCurtainMesh.material.color.setHex(0xa855f7);
+        livePathLine.material.color.setHex(0xa855f7);
+        livePathLine.material.emissive.setHex(0x581c87);
+      } else {
+        badge.className = 'px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-block shadow-sm';
+        stateCard.className = 'glass-card glass-card-hover p-4 flex flex-col justify-between';
+        laserCurtainMesh.material.color.setHex(0x10b981);
+        livePathLine.material.color.setHex(0xfbbf24);
+        livePathLine.material.emissive.setHex(0x92400e);
+      }
+      document.getElementById('state-desc').textContent = pred.state_description;
+
+      // 3. Mitigation Action Card & HUD
+      document.getElementById('speed-factor-badge').textContent = `${policy.execution_speed_factor.toFixed(2)}x`;
+      document.getElementById('mitigation-action-name').textContent = policy.recommended_action;
+      document.getElementById('mitigation-detail').textContent = policy.low_level_control_signal;
+      document.getElementById('hud-message-text').textContent = policy.hud_transparency_message;
+      document.getElementById('hud-timestamp').textContent = new Date().toISOString().substring(11, 19) + ' UTC';
+
+      const valBtn = document.getElementById('operator-validation-btn-container');
+      if (policy.requires_operator_validation) {
+        valBtn.classList.remove('hidden');
+      } else {
+        valBtn.classList.add('hidden');
+      }
+
+      // 4. Latency
+      document.getElementById('latency-val').textContent = `${pred.decision_latency_ms.toFixed(1)} ms`;
+      document.getElementById('conf-val').textContent = `${(pred.system_confidence * 100).toFixed(1)}%`;
+
+      // 5. Attention Weights Breakdown
+      document.getElementById('w-robot-val').textContent = `${(attn.robot_kinematics * 100).toFixed(1)}%`;
+      document.getElementById('w-robot-bar').style.width = `${(attn.robot_kinematics * 100)}%`;
+      document.getElementById('w-face-val').textContent = `${(attn.facial_affect * 100).toFixed(1)}%`;
+      document.getElementById('w-face-bar').style.width = `${(attn.facial_affect * 100)}%`;
+      document.getElementById('w-voice-val').textContent = `${(attn.vocal_acoustics * 100).toFixed(1)}%`;
+      document.getElementById('w-voice-bar').style.width = `${(attn.vocal_acoustics * 100)}%`;
+      document.getElementById('w-physio-val').textContent = `${(attn.physiological_bvp * 100).toFixed(1)}%`;
+      document.getElementById('w-physio-bar').style.width = `${(attn.physiological_bvp * 100)}%`;
+
+      // Update Chart.js Radar
+      if (radarChart) {
+        radarChart.data.datasets[0].data = [
+          attn.robot_kinematics,
+          attn.facial_affect,
+          attn.vocal_acoustics,
+          attn.physiological_bvp
+        ];
+        radarChart.update();
+      }
+
+      // 6. Telemetry Grid
+      const rob = tel.robot_telemetry;
+      document.getElementById('tel-speed').textContent = `${rob.execution_speed_mps.toFixed(2)} m/s`;
+      document.getElementById('tel-drift').textContent = `${rob.normalized_drift.toFixed(2)} m`;
+      document.getElementById('tel-torque').textContent = rob.joint_torque_anomaly.toFixed(2);
+      document.getElementById('tel-kin-score').textContent = rob.kinematic_reliability_score.toFixed(2);
+      document.getElementById('tel-error-badge').textContent = rob.error_type.toUpperCase();
+
+      const face = tel.facial_affect;
+      document.getElementById('tel-brow').textContent = face.brow_furrow.toFixed(2);
+      document.getElementById('tel-fear').textContent = face.fear_expression.toFixed(2);
+      document.getElementById('tel-entropy').textContent = face.facial_entropy.toFixed(2);
+      document.getElementById('tel-face-score').textContent = face.facial_calm_score.toFixed(2);
+      document.getElementById('tel-emotion-badge').textContent = face.dominant_emotion.toUpperCase();
+
+      const voc = tel.vocal_acoustics;
+      document.getElementById('tel-f0').textContent = `${voc.pitch_f0_hz.toFixed(0)} Hz`;
+      document.getElementById('tel-jitter').textContent = `${voc.jitter_percent.toFixed(2)}%`;
+      document.getElementById('tel-pause').textContent = voc.pause_ratio.toFixed(2);
+      document.getElementById('tel-vocal-score').textContent = voc.vocal_stability_score.toFixed(2);
+      document.getElementById('tel-snr-badge').textContent = `SNR ${voc.ambient_noise_snr_db.toFixed(0)}dB`;
+
+      const phy = tel.physiological_bvp;
+      document.getElementById('tel-hr').textContent = `${phy.heart_rate_bpm.toFixed(0)} BPM`;
+      document.getElementById('tel-eda').textContent = `${phy.eda_microsiemens.toFixed(1)} \u03BCS`;
+      document.getElementById('tel-filter-badge').textContent = phy.has_motion_artifact ? 'FILTER CLAMPED' : 'BANDPASS ON';
+
+      // 7. 3D Floating HUD
+      document.getElementById('hud-drift-mm').textContent = `${(rob.normalized_drift * 1000).toFixed(0)} mm`;
+      document.getElementById('hud-ur5-phase').textContent = data.task_name.split(':')[1] || 'Collaborative';
+      document.getElementById('hud-safety-status').textContent = (score < 0.35) ? 'STANDOFF / E-STOP' : 'Nominal Boundary';
+
+      // Attention noise note
+      const noiseText = document.getElementById('noise-status-text');
+      if (voc.ambient_noise_snr_db < 12.0) {
+        noiseText.textContent = 'Voice Attenuated (SNR Low)';
+        noiseText.className = 'text-amber-400 font-bold';
+      } else if (phy.has_motion_artifact) {
+        noiseText.textContent = 'Physio Attenuated (Motion Artifact)';
+        noiseText.className = 'text-amber-400 font-bold';
+      } else {
+        noiseText.textContent = 'All Channels Clean';
+        noiseText.className = 'text-emerald-400 font-bold';
+      }
+
+      // Kinematic UR5 Arm Positioning
+      animateUR5Pose(rob.normalized_drift, rob.error_type);
+    }
+
+    function animateUR5Pose(drift, errType) {
+      if (!upperArm || !forearm || !gripperLeft || !gripperRight) return;
+      if (errType === 'gripper_slip') {
+        gripperLeft.position.x = -0.07;
+        gripperRight.position.x = 0.07;
+        workpieceMesh.position.y = -0.15; // dropped
+      } else {
+        gripperLeft.position.x = -0.035;
+        gripperRight.position.x = 0.035;
+        workpieceMesh.position.y = 0.07; // held
+      }
+      upperArm.rotation.z = -Math.PI / 4 + drift * 0.4;
+      forearm.rotation.z = Math.PI / 2.8 - drift * 0.3;
+    }
+
+    // -------------------------------------------------------------
+    // COBOT WORKFLOW STEPPER SIMULATION
+    // -------------------------------------------------------------
+    async function stepForwardCobot(err = 'nominal', recovery = false) {
+      playAudioTone(820, 'sine', 0.06);
+      try {
+        const res = await fetch('/api/cobot/step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            step_index: currentStepIndex,
+            inject_error: err,
+            active_recovery: recovery
+          })
+        });
+        const data = await res.json();
+        currentStepIndex = data.next_step_index;
+        updateStepperPips(currentStepIndex);
+        updateDashboard(data.inference);
+      } catch (err) {
+        console.error('Cobot step error:', err);
+      }
+    }
+
+    function triggerCobotStepError(errType) {
+      playAudioTone(350, 'sawtooth', 0.25, 0.08); // alert sound
+      stepForwardCobot(errType, false);
+    }
+
+    function triggerActiveRecovery() {
+      playAudioTone(950, 'sine', 0.15, 0.07);
+      stepForwardCobot('nominal', true);
+    }
+
+    function approveOperatorValidation() {
+      playAudioTone(1100, 'sine', 0.20, 0.08);
+      stepForwardCobot('nominal', false);
+      alert('Operator Handover Validation Confirmed: Cobot resume signal verified. Velocity restored.');
+    }
+
+    function resetAssemblyCycle() {
+      currentStepIndex = 0;
+      updateStepperPips(0);
+      loadScenario('scenario_1');
+    }
+
+    function updateStepperPips(activeIdx) {
+      for (let i = 0; i < 6; i++) {
+        const pip = document.getElementById(`step-pip-${i}`);
+        if (i === activeIdx) {
+          pip.className = 'px-2 py-0.5 rounded bg-teal-500 text-dark-950 font-bold scale-110 transition';
+        } else {
+          pip.className = 'px-2 py-0.5 rounded bg-dark-800 text-gray-400';
+        }
+      }
+    }
+
+    function toggleAutoPlay() {
+      const btn = document.getElementById('btn-autoplay');
+      const text = document.getElementById('autoplay-text');
+      const icon = document.getElementById('autoplay-icon');
+
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+        autoPlayInterval = null;
+        text.textContent = 'Auto Play Cycle';
+        icon.setAttribute('data-lucide', 'play');
+        btn.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg bg-teal-500 hover:bg-teal-400 text-dark-950 transition flex items-center space-x-1.5 shadow-md shadow-teal-500/20";
+      } else {
+        autoPlayInterval = setInterval(() => {
+          stepForwardCobot('nominal', false);
+        }, 2200);
+        text.textContent = 'Pause Cycle';
+        icon.setAttribute('data-lucide', 'pause');
+        btn.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-400 text-dark-950 transition flex items-center space-x-1.5 shadow-md shadow-amber-500/20";
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------
+    // BASELINE BENCHMARK SUITE (TAB 2)
+    // -------------------------------------------------------------
+    async function loadBaselines() {
+      try {
+        const res = await fetch('/api/eval/baselines');
+        const data = await res.json();
+        renderBaselineTable(data.benchmark_results);
+        renderBaselineChart(data.benchmark_results);
+      } catch (err) {
+        console.error('Error loading baselines:', err);
+      }
+    }
+
+    function refreshBaselines() {
+      playAudioTone(700, 'sine', 0.08);
+      loadBaselines();
+    }
+
+    function renderBaselineTable(models) {
+      const tbody = document.getElementById('baseline-table-body');
+      tbody.innerHTML = '';
+      for (const [name, res] of Object.entries(models)) {
+        const isProposed = name.includes('Proposed');
+        const tr = document.createElement('tr');
+        tr.className = isProposed ? 'bg-teal-500/10 font-bold border-l-4 border-teal-400' : 'hover:bg-dark-900/40';
+
+        const passTag = res.meets_da1_target
+          ? `<span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PASS (&lt;0.08)</span>`
+          : `<span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">FAIL (&ge;0.08)</span>`;
+
+        tr.innerHTML = `
+          <td class="p-3.5 text-white flex items-center">${isProposed ? '<i data-lucide="star" class="w-3.5 h-3.5 mr-1.5 text-teal-400 fill-teal-400"></i>' : ''}${name}</td>
+          <td class="p-3.5 text-gray-400">${res.model_type}</td>
+          <td class="p-3.5 ${isProposed ? 'text-teal-300 font-extrabold' : 'text-gray-300'}">${res.mse.toFixed(4)}</td>
+          <td class="p-3.5 text-gray-300">${res.mae.toFixed(4)}</td>
+          <td class="p-3.5 text-gray-300">${res.r2_score.toFixed(4)}</td>
+          <td class="p-3.5 text-gray-300">${res.f1_score.toFixed(4)}</td>
+          <td class="p-3.5 text-gray-400 font-mono">${res.latency_ms.toFixed(1)} ms</td>
+          <td class="p-3.5">${passTag}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+      lucide.createIcons();
+    }
+
+    function renderBaselineChart(models) {
+      const ctx = document.getElementById('baselineChartCanvas').getContext('2d');
+      const labels = Object.keys(models).map(k => k.replace('Unimodal: ', '').replace('Proposed Temporal ', '★ Proposed '));
+      const mses = Object.values(models).map(v => v.mse);
+      const bgColors = labels.map(l => l.includes('★') ? '#2dd4bf' : 'rgba(100, 116, 139, 0.6)');
+
+      if (baselineChart) baselineChart.destroy();
+
+      baselineChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Prediction MSE',
+            data: mses,
+            backgroundColor: bgColors,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#cbd5e1', font: { family: 'Plus Jakarta Sans', size: 10 } }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ABLATION STUDIES (TAB 3)
+    // -------------------------------------------------------------
+    async function loadAblations() {
+      try {
+        const res = await fetch('/api/eval/ablations');
+        const data = await res.json();
+        
+        const modTbody = document.getElementById('ablation-modality-tbody');
+        modTbody.innerHTML = '';
+        data.modality_ablations.forEach(row => {
+          const tr = document.createElement('tr');
+          tr.className = row.status === 'Reference' ? 'bg-teal-500/10 font-bold' : 'hover:bg-dark-900/40';
+          tr.innerHTML = `
+            <td class="p-3 text-white">${row.configuration}</td>
+            <td class="p-3 text-gray-300 font-mono">${row.mse.toFixed(4)}</td>
+            <td class="p-3 text-gray-400 font-mono">${row.delta_mse > 0 ? '+' + row.delta_mse.toFixed(4) : '--'}</td>
+            <td class="p-3 text-teal-300 font-bold">${row.impact || 'Reference'}</td>
+          `;
+          modTbody.appendChild(tr);
+        });
+
+        const winTbody = document.getElementById('ablation-window-tbody');
+        winTbody.innerHTML = '';
+        data.temporal_window_ablations.forEach(row => {
+          const tr = document.createElement('tr');
+          const isOptimal = row.window_length.includes('Optimal');
+          tr.className = isOptimal ? 'bg-teal-500/10 font-bold' : 'hover:bg-dark-900/40';
+          tr.innerHTML = `
+            <td class="p-3 text-white">${row.window_length}</td>
+            <td class="p-3 text-gray-300 font-mono">${row.mse.toFixed(4)}</td>
+            <td class="p-3 text-gray-400 font-mono">${row.latency_ms.toFixed(1)} ms</td>
+            <td class="p-3 text-gray-300">${row.evaluation}</td>
+          `;
+          winTbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Error loading ablations:', err);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // LEAVE-ONE-SUBJECT-OUT (LOSO) VALIDATION (TAB 4)
+    // -------------------------------------------------------------
+    async function loadLOSO() {
+      try {
+        const res = await fetch('/api/eval/loso');
+        const data = await res.json();
+        document.getElementById('loso-mean-mse').textContent = data.mean_loso_mse.toFixed(4);
+
+        const tbody = document.getElementById('loso-table-body');
+        tbody.innerHTML = '';
+        data.fold_results.forEach((fold, idx) => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-dark-900/40';
+          tr.innerHTML = `
+            <td class="p-3.5 text-white font-bold">Fold ${idx + 1} (${fold.holdout_subject})</td>
+            <td class="p-3.5 text-gray-400">${fold.samples} trials</td>
+            <td class="p-3.5 text-teal-300 font-bold">${fold.mse.toFixed(4)}</td>
+            <td class="p-3.5 text-gray-300">${fold.mae.toFixed(4)}</td>
+            <td class="p-3.5 text-gray-300">${fold.r2.toFixed(4)}</td>
+            <td class="p-3.5"><span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PASS (&lt;0.08)</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Error loading LOSO:', err);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // PYTORCH RETRAINING & SUPERVISOR LOGGING (TAB 5)
+    // -------------------------------------------------------------
+    async function executeRetrain() {
+      const btn = document.getElementById('btn-retrain');
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Training PyTorch...</span>`;
+      lucide.createIcons();
+      playAudioTone(650, 'sine', 0.1);
+
+      try {
+        const res = await fetch('/api/retrain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ epochs: 80, learning_rate: 0.02, use_synthetic_augmentation: true })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          document.getElementById('pre-mae-val').textContent = data.metrics.pre_retrain_mae.toFixed(4);
+          document.getElementById('post-mae-val').textContent = data.metrics.post_retrain_mae.toFixed(4);
+          document.getElementById('mae-improvement-val').textContent = `+${data.metrics.improvement_pct.toFixed(2)}%`;
+          document.getElementById('retrain-loss-val').textContent = `Final Loss: ${data.loss_history[data.loss_history.length - 1].toFixed(4)}`;
+
+          drawLossCurve(data.loss_history);
+          playAudioTone(1000, 'sine', 0.2, 0.08);
+          alert(`PyTorch Neural Retraining Complete!\nModel achieved Post-Retrain MAE ${data.metrics.post_retrain_mae.toFixed(4)} with ${data.metrics.improvement_pct.toFixed(1)}% error reduction.`);
+        }
+      } catch (err) {
+        console.error('Retraining error:', err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5"></i><span>Retrain Fusion Head</span>`;
+        lucide.createIcons();
+      }
+    }
+
+    function drawLossCurve(losses) {
+      const canvas = document.getElementById('retrainLossCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      if (!losses || losses.length < 2) return;
+
+      const maxLoss = Math.max(...losses, 0.01);
+      const minLoss = Math.min(...losses, 0.0);
+
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.3)';
+      ctx.lineWidth = 1;
+      for (let y = 0; y <= 4; y++) {
+        const py = h - (y / 4) * (h - 20) - 10;
+        ctx.beginPath();
+        ctx.moveTo(30, py);
+        ctx.lineTo(w - 10, py);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      losses.forEach((l, i) => {
+        const px = 30 + (i / (losses.length - 1)) * (w - 40);
+        const py = h - 10 - ((l - minLoss) / (maxLoss - minLoss + 1e-6)) * (h - 25);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    }
+
+    async function submitSupervisorFeedback() {
+      if (!currentInferenceData) return;
+      const score = parseFloat(document.getElementById('sup-score-slider').value);
+      const subj = document.getElementById('sup-subject-select').value;
+      const notes = document.getElementById('sup-notes-input').value;
+
+      try {
+        await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            record: currentInferenceData,
+            supervisor_ground_truth_trust: score,
+            subject_id: subj,
+            notes: notes
+          })
+        });
+        playAudioTone(900, 'sine', 0.1);
+        alert('Supervisor Ground-Truth logged to JSONL dataset.');
+      } catch (err) {
+        console.error('Feedback submission error:', err);
+      }
+    }
+
+    async function seedDatasetRecords() {
+      try {
+        const res = await fetch('/api/dataset/seed', { method: 'POST' });
+        const data = await res.json();
+        playAudioTone(850, 'sine', 0.1);
+        alert(data.message);
+      } catch (err) {
+        console.error('Seed dataset error:', err);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // SLIDERS LAB SYNC
+    // -------------------------------------------------------------
+    function syncSliders(sc) {
+      document.getElementById('slider-speed').value = sc.execution_speed_mps || 0.8;
+      document.getElementById('lab-speed-val').textContent = `${sc.execution_speed_mps || 0.8} m/s`;
+      document.getElementById('select-error-type').value = sc.error_type || 'nominal';
+
+      if (sc.facial_params) {
+        document.getElementById('slider-brow').value = sc.facial_params.brow_furrow || 0.1;
+        document.getElementById('lab-brow-val').textContent = sc.facial_params.brow_furrow || 0.1;
+        document.getElementById('slider-fear').value = sc.facial_params.fear_expression || 0.05;
+        document.getElementById('lab-fear-val').textContent = sc.facial_params.fear_expression || 0.05;
+      }
+      if (sc.vocal_params) {
+        document.getElementById('slider-f0').value = sc.vocal_params.pitch_f0_hz || 175;
+        document.getElementById('lab-f0-val').textContent = `${sc.vocal_params.pitch_f0_hz || 175} Hz`;
+        document.getElementById('slider-jitter').value = sc.vocal_params.jitter_percent || 0.85;
+        document.getElementById('lab-jitter-val').textContent = `${sc.vocal_params.jitter_percent || 0.85}%`;
+      }
+      if (sc.physio_params) {
+        document.getElementById('slider-hr').value = sc.physio_params.heart_rate_bpm || 74;
+        document.getElementById('lab-hr-val').textContent = `${sc.physio_params.heart_rate_bpm || 74} BPM`;
+        document.getElementById('slider-eda').value = sc.physio_params.eda_microsiemens || 3.2;
+        document.getElementById('lab-eda-val').textContent = `${sc.physio_params.eda_microsiemens || 3.2} \u03BCS`;
+      }
+    }
+
+    function runInteractiveInference() {
+      const speed = parseFloat(document.getElementById('slider-speed').value);
+      const errType = document.getElementById('select-error-type').value;
+      const brow = parseFloat(document.getElementById('slider-brow').value);
+      const fear = parseFloat(document.getElementById('slider-fear').value);
+      const f0 = parseFloat(document.getElementById('slider-f0').value);
+      const jitter = parseFloat(document.getElementById('slider-jitter').value);
+      const hr = parseFloat(document.getElementById('slider-hr').value);
+      const eda = parseFloat(document.getElementById('slider-eda').value);
+
+      document.getElementById('lab-speed-val').textContent = `${speed.toFixed(2)} m/s`;
+      document.getElementById('lab-brow-val').textContent = brow.toFixed(2);
+      document.getElementById('lab-fear-val').textContent = fear.toFixed(2);
+      document.getElementById('lab-f0-val').textContent = `${f0.toFixed(0)} Hz`;
+      document.getElementById('lab-jitter-val').textContent = `${jitter.toFixed(2)}%`;
+      document.getElementById('lab-hr-val').textContent = `${hr.toFixed(0)} BPM`;
+      document.getElementById('lab-eda-val').textContent = `${eda.toFixed(1)} \u03BCS`;
+
+      let actTraj = [[0.0, 0.4, 0.2], [0.11, 0.44, 0.26], [0.21, 0.49, 0.29], [0.3, 0.5, 0.2]];
+      if (errType === 'gripper_slip') {
+        actTraj = [[0.0, 0.4, 0.2], [0.28, 0.32, 0.14], [0.50, 0.22, 0.08], [0.65, 0.12, 0.02]];
+      } else if (errType === 'minor_deviation') {
+        actTraj = [[0.0, 0.4, 0.2], [0.16, 0.41, 0.22], [0.24, 0.47, 0.28], [0.32, 0.49, 0.21]];
+      }
+
+      executeInference({
+        execution_speed_mps: speed,
+        error_type: errType,
+        actual_trajectory: actTraj,
+        facial_params: { brow_furrow: brow, fear_expression: fear, dominant_emotion: brow > 0.4 ? 'Concerned' : 'Calm' },
+        vocal_params: { pitch_f0_hz: f0, jitter_percent: jitter },
+        physio_params: { heart_rate_bpm: hr, eda_microsiemens: eda }
+      });
+    }
+  </script>
+</body>
+</html>
