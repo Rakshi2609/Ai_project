@@ -88,13 +88,26 @@ check_status() {
   else
     echo -e "  Next.js Dashboard (port ${PORT_NEXT}): ${RED}${BOLD}○ OFFLINE${NC}"
   fi
+
+  # Hardware Diagnostics
+  echo -e "  -------------------------------------------------"
+  if ls /dev/video* 1>/dev/null 2>&1; then
+    VIDEOS=$(ls /dev/video* 2>/dev/null | tr '\n' ' ')
+    echo -e "  Video Stream Hardware:                ${GREEN}${BOLD}✔ DETECTED${NC} (${VIDEOS})"
+  else
+    echo -e "  Video Stream Hardware:                ${AMBER}○ NO CAMERA DETECTED (/dev/video*)${NC}"
+  fi
 }
 
 # ------------------------------------------------------------------------------
 # Action: TEST
 # ------------------------------------------------------------------------------
 run_tests() {
-  echo -e "${CYAN}${BOLD}[Verification Test Suite]${NC} Executing 3-module test pipeline..."
+  echo -e "${CYAN}${BOLD}[Verification Test Suite]${NC} Executing automated test suite..."
+  if [ -f "tests/test_routes.py" ]; then
+    echo -e "  ${CYAN}Running Multi-Route Verification...${NC}"
+    python3 tests/test_routes.py || true
+  fi
   if [ -f "./test.sh" ]; then
     ./test.sh
   else
