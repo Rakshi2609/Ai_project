@@ -52,29 +52,44 @@ evaluator = CobotTrustEvaluator()
 # Pydantic Request Models
 # -------------------------------------------------------------
 class FacialParams(BaseModel):
-    brow_furrow: float = Field(default=0.12, ge=0.0, le=1.0)
-    fear_expression: float = Field(default=0.08, ge=0.0, le=1.0)
-    anger_expression: float = Field(default=0.05, ge=0.0, le=1.0)
-    eye_widen: float = Field(default=0.10, ge=0.0, le=1.0)
-    jaw_clench: float = Field(default=0.06, ge=0.0, le=1.0)
-    facial_entropy: float = Field(default=0.18, ge=0.0, le=1.0)
+    brow_furrow: Optional[float] = None
+    fear_expression: Optional[float] = None
+    anger_expression: Optional[float] = None
+    eye_widen: Optional[float] = None
+    jaw_clench: Optional[float] = None
+    facial_entropy: Optional[float] = None
     gaze_drift_variance: float = Field(default=0.04, ge=0.0, le=1.0)
-    dominant_emotion: str = Field(default="Neutral")
+    dominant_emotion: Optional[str] = None
+    # Next.js telemetry schema fields
+    au04_brow_furrow: Optional[float] = None
+    au12_smile: Optional[float] = None
+    mouth_open: Optional[float] = None
+    blink_rate_bpm: Optional[float] = None
+    valence_entropy: Optional[float] = None
 
 class VocalParams(BaseModel):
-    pitch_f0_hz: float = Field(default=175.0, ge=80.0, le=450.0)
-    f0_std_hz: float = Field(default=18.0, ge=0.0, le=100.0)
-    jitter_percent: float = Field(default=0.85, ge=0.0, le=10.0)
-    shimmer_percent: float = Field(default=2.1, ge=0.0, le=20.0)
-    pause_ratio: float = Field(default=0.12, ge=0.0, le=1.0)
-    ambient_noise_snr_db: float = Field(default=28.0, ge=0.0, le=50.0)
+    pitch_f0_hz: Optional[float] = None
+    f0_std_hz: Optional[float] = None
+    jitter_percent: Optional[float] = None
+    shimmer_percent: Optional[float] = None
+    pause_ratio: Optional[float] = None
+    ambient_noise_snr_db: Optional[float] = None
+    # Next.js telemetry schema fields
+    pitch_mean_hz: Optional[float] = None
+    acoustic_jitter_pct: Optional[float] = None
+    intensity_db: Optional[float] = None
+    speech_duration_s: Optional[float] = None
 
 class PhysioParams(BaseModel):
-    heart_rate_bpm: float = Field(default=74.0, ge=45.0, le=160.0)
-    hrv_rmssd_ms: float = Field(default=48.0, ge=10.0, le=120.0)
-    eda_microsiemens: float = Field(default=3.2, ge=0.5, le=25.0)
+    heart_rate_bpm: Optional[float] = None
+    hrv_rmssd_ms: Optional[float] = None
+    eda_microsiemens: Optional[float] = None
     has_motion_artifact: bool = Field(default=False)
     artifact_snr_db: float = Field(default=22.0, ge=0.0, le=40.0)
+    # Next.js telemetry schema fields
+    bvp_pulse_rate_bpm: Optional[float] = None
+    eda_skin_conductance_us: Optional[float] = None
+    respiration_rate_bpm: Optional[float] = None
 
 class CobotInferenceRequest(BaseModel):
     task_name: str = Field(default="UR5 Collaborative Assembly: Fastener Insertion")
@@ -245,9 +260,60 @@ def get_scenarios():
 def run_cobot_inference(payload: CobotInferenceRequest):
     """Executes full 5-module multimodal trust prediction and mitigation decision."""
     try:
-        f_dict = payload.facial_params.dict() if payload.facial_params else None
-        v_dict = payload.vocal_params.dict() if payload.vocal_params else None
-        p_dict = payload.physio_params.dict() if payload.physio_params else None
+        # Reload latest calibrated weights if modified on disk
+        pipeline.mod4_predictor.reload_weights()
+
+        f_dict = None
+        if payload.facial_params:
+            fp = payload.facial_params
+            brow = fp.au04_brow_furrow if fp.au04_brow_furrow is not None else (fp.brow_furrow if fp.brow_furrow is not None else 0.12)
+            smile = fp.au12_smile if fp.au12_smile is not None else 0.08
+            m_open = fp.mouth_open if fp.mouth_open is not None else 0.05
+            entropy = fp.valence_entropy if fp.valence_entropy is not None else (fp.facial_entropy if fp.facial_entropy is not None else 0.18)
+            
+            # Map facial features into pipeline blendshapes
+            f_dict = {
+                "brow_furrow": round(float(brow), 3),
+                "fear_expression": round(float(max(0.0, min(1.0, brow * 0.85 + m_open * 0.45 - smile * 0.4))), 3),
+                "anger_expression": round(float(max(0.0, min(1.0, brow * 0.80 - smile * 0.5))), 3),
+                "eye_widen": round(float(min(1.0, m_open * 0.7 + brow * 0.3)), 3),
+                "jaw_clench": round(float(max(0.0, min(1.0, 0.05 + brow * 0.5 - m_open * 0.2))), 3),
+                "facial_entropy": round(float(entropy), 3),
+                "gaze_drift_variance": round(float(fp.gaze_drift_variance), 3),
+                "dominant_emotion": fp.dominant_emotion or ("Stressed (AU04)" if brow > 0.35 else ("Smiling (Positive)" if smile > 0.35 else "Neutral"))
+            }
+
+        v_dict = None
+        if payload.vocal_params:
+            vp = payload.vocal_params
+            pitch = vp.pitch_mean_hz if vp.pitch_mean_hz is not None else (vp.pitch_f0_hz if vp.pitch_f0_hz is not None else 175.0)
+            jitter = vp.acoustic_jitter_pct if vp.acoustic_jitter_pct is not None else (vp.jitter_percent if vp.jitter_percent is not None else 0.85)
+            intensity = vp.intensity_db if vp.intensity_db is not None else 54.0
+            pause = vp.pause_ratio if vp.pause_ratio is not None else 0.12
+
+            # When operator speaks loudly or voice cracks (jitter > 1.5%), tension escalates
+            v_dict = {
+                "pitch_f0_hz": round(float(pitch), 2),
+                "f0_std_hz": round(float(max(8.0, jitter * 16.0)), 2),
+                "jitter_percent": round(float(jitter), 2),
+                "shimmer_percent": round(float(max(1.0, min(12.0, (intensity - 30.0) / 4.5))), 2),
+                "pause_ratio": round(float(pause), 2),
+                "ambient_noise_snr_db": round(float(max(10.0, 45.0 - (intensity / 3.0))), 2)
+            }
+
+        p_dict = None
+        if payload.physio_params:
+            pp = payload.physio_params
+            hr = pp.bvp_pulse_rate_bpm if pp.bvp_pulse_rate_bpm is not None else (pp.heart_rate_bpm if pp.heart_rate_bpm is not None else 74.0)
+            eda = pp.eda_skin_conductance_us if pp.eda_skin_conductance_us is not None else (pp.eda_microsiemens if pp.eda_microsiemens is not None else 3.2)
+            hrv = pp.hrv_rmssd_ms if pp.hrv_rmssd_ms is not None else max(15.0, 70.0 - (hr - 60.0) * 0.8)
+            p_dict = {
+                "heart_rate_bpm": round(float(hr), 1),
+                "hrv_rmssd_ms": round(float(hrv), 1),
+                "eda_microsiemens": round(float(eda), 2),
+                "has_motion_artifact": pp.has_motion_artifact,
+                "artifact_snr_db": round(float(pp.artifact_snr_db), 1)
+            }
 
         result = pipeline.run_inference(
             task_name=payload.task_name,

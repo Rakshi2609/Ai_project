@@ -1,18 +1,12 @@
 {
-  "w_robot": 0.3131,
-  "w_face": 0.233,
-  "w_voice": 0.167,
-  "w_physio": 0.2869,
-  "bias": -0.1263,
-  "error_penalty_factor": -0.0933,
-  "drift_penalty_factor": -0.0288,
-  "under_trust_threshold": 0.35,
-  "over_trust_threshold": 0.75,
-  "version": "retrained_cobot_1790095297",
-  "last_retrained_at": "2026-09-22T16:41:37Z",
-  "training_samples": 35,
-  "mae_before": 0.1136,
-  "mae_after": 0.0316,
-  "mse_after": 0.0017,
-  "mae_improvement_pct": 72.17
+  "w_robot": 0.35,
+  "w_face": 0.25,
+  "w_voice": 0.2,
+  "w_physio": 0.2,
+  "bias": -0.18,
+  "error_penalty_factor": 0.42,
+  "drift_penalty_factor": 0.32,
+  "under_trust_threshold": 0.38,
+  "over_trust_threshold": 0.78,
+  "version": "calibrated_v3.2_multimodal"
 }

@@ -71,7 +71,10 @@ export interface InferenceResponse {
     trust_state: 'CALIBRATED_TRUST' | 'UNDER_TRUST' | 'OVER_TRUST';
     state_description: string;
     prediction_uncertainty: number;
-    latency_ms: number;
+    latency_ms?: number;
+    decision_latency_ms?: number;
+    system_confidence?: number;
+    latency_compliant_250ms?: boolean;
   };
   module_5_mitigation_policy: {
     recommended_action: string;

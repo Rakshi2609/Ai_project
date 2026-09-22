@@ -37,6 +37,40 @@ export default function VoiceCapture({
     speaking: false,
   });
 
+  const [lockedVoicePreset, setLockedVoicePreset] = useState<string | null>(null);
+  const lockedVoicePresetRef = useRef<string | null>(null);
+
+  const applyVocalPreset = (type: "calm" | "tense" | "alert" | "silent") => {
+    let metrics: typeof audioMetrics;
+    let telem: VocalTelemetry;
+
+    if (type === "calm") {
+      metrics = { f0_pitch: 162, jitter: 0.65, intensity_db: 54, speaking: true };
+      telem = { pitch_mean_hz: 162, acoustic_jitter_pct: 0.65, intensity_db: 54, pause_ratio: 0.08, speech_duration_s: 3.2 };
+    } else if (type === "tense") {
+      metrics = { f0_pitch: 218, jitter: 2.45, intensity_db: 68, speaking: true };
+      telem = { pitch_mean_hz: 218, acoustic_jitter_pct: 2.45, intensity_db: 68, pause_ratio: 0.28, speech_duration_s: 2.1 };
+    } else if (type === "alert") {
+      metrics = { f0_pitch: 320, jitter: 3.85, intensity_db: 84, speaking: true };
+      telem = { pitch_mean_hz: 320, acoustic_jitter_pct: 3.85, intensity_db: 84, pause_ratio: 0.02, speech_duration_s: 1.5 };
+    } else {
+      metrics = { f0_pitch: 135, jitter: 0.45, intensity_db: 34, speaking: false };
+      telem = { pitch_mean_hz: 135, acoustic_jitter_pct: 0.45, intensity_db: 34, pause_ratio: 0.65, speech_duration_s: 0.1 };
+    }
+
+    lockedVoicePresetRef.current = type;
+    setLockedVoicePreset(type);
+    setAudioMetrics(metrics);
+    if (onTelemetryChangeRef.current) {
+      onTelemetryChangeRef.current(telem);
+    }
+  };
+
+  const resumeLiveMicTracking = () => {
+    lockedVoicePresetRef.current = null;
+    setLockedVoicePreset(null);
+  };
+
   const lastPitchesRef = useRef<number[]>([]);
   const lastUpdateRef = useRef<number>(0);
 
@@ -238,16 +272,18 @@ export default function VoiceCapture({
           speaking: isSpeaking,
         };
 
-        setAudioMetrics(metrics);
-
-        if (onTelemetryChangeRef.current) {
-          onTelemetryChangeRef.current({
-            pitch_mean_hz: cleanPitch,
-            acoustic_jitter_pct: Math.min(3.5, Math.max(0.3, jitter)),
-            intensity_db: Math.round(intensityDb),
-            pause_ratio: isSpeaking ? 0.05 : 0.45,
-            speech_duration_s: isSpeaking ? 2.8 : 0.2,
-          });
+        // If locked in manual vocal preset and user is NOT actively speaking into mic, keep preset
+        if (!lockedVoicePresetRef.current || isSpeaking) {
+          setAudioMetrics(metrics);
+          if (onTelemetryChangeRef.current) {
+            onTelemetryChangeRef.current({
+              pitch_mean_hz: cleanPitch,
+              acoustic_jitter_pct: Math.min(3.5, Math.max(0.3, jitter)),
+              intensity_db: Math.round(intensityDb),
+              pause_ratio: isSpeaking ? 0.05 : 0.45,
+              speech_duration_s: isSpeaking ? 2.8 : 0.2,
+            });
+          }
         }
       }
 
@@ -401,6 +437,105 @@ export default function VoiceCapture({
               }}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Acoustic Impact on Trust Explainer */}
+      <div className="p-2.5 rounded-xl bg-dark-900/90 border border-white/5 space-y-1.5 font-mono text-[11px]">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400">Trust Acoustic Influence:</span>
+          {audioMetrics.intensity_db > 75 || audioMetrics.jitter > 3.0 ? (
+            <span className="text-rose-400 font-bold flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mr-1 animate-ping" />
+              -25% (Distress Alert)
+            </span>
+          ) : audioMetrics.intensity_db > 62 || audioMetrics.jitter > 1.8 ? (
+            <span className="text-amber-400 font-bold flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1" />
+              -14% (Vocal Tension)
+            </span>
+          ) : audioMetrics.speaking ? (
+            <span className="text-emerald-400 font-bold flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
+              +6% (Steady Confirmation)
+            </span>
+          ) : (
+            <span className="text-gray-400 flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 mr-1" />
+              0% (Baseline Silence)
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] text-gray-400 leading-tight">
+          {audioMetrics.intensity_db > 75 || audioMetrics.jitter > 3.0
+            ? "Loud vocal spike detected: operator distress triggers immediate cobot speed clamp & mitigation."
+            : audioMetrics.intensity_db > 62 || audioMetrics.jitter > 1.8
+            ? "Elevated pitch/jitter: operator hesitation or cognitive strain decreases trust score."
+            : audioMetrics.speaking
+            ? "Steady tone & normal F0: validates active human vigilance in collaborative zone."
+            : "Quiet factory baseline: trust prediction driven by cobot trajectory and facial optical flow."}
+        </p>
+      </div>
+
+      {/* Quick Vocal Stress Presets */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between text-[10px] font-mono text-gray-400">
+          <span>Quick Voice Test Presets:</span>
+          {lockedVoicePreset && (
+            <button
+              onClick={resumeLiveMicTracking}
+              className="text-teal-400 hover:text-teal-300 font-bold text-[10px] flex items-center space-x-1"
+            >
+              <span>↺ Resume Live Mic</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5 text-xs font-mono">
+          <button
+            onClick={() => applyVocalPreset("calm")}
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedVoicePreset === "calm"
+                ? "bg-teal-500/30 border-teal-400 text-white font-bold shadow-[0_0_10px_rgba(45,212,191,0.3)]"
+                : "bg-dark-900 hover:bg-dark-800 text-teal-300 border-teal-500/20 hover:border-teal-500/40"
+            }`}
+          >
+            <span>🗣️</span>
+            <span className="text-[10px]">Calm</span>
+          </button>
+          <button
+            onClick={() => applyVocalPreset("tense")}
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedVoicePreset === "tense"
+                ? "bg-amber-500/30 border-amber-400 text-white font-bold shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+                : "bg-dark-900 hover:bg-dark-800 text-amber-300 border-amber-500/20 hover:border-amber-500/40"
+            }`}
+          >
+            <span>⚠️</span>
+            <span className="text-[10px]">Tense</span>
+          </button>
+          <button
+            onClick={() => applyVocalPreset("alert")}
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedVoicePreset === "alert"
+                ? "bg-rose-500/30 border-rose-400 text-white font-bold shadow-[0_0_10px_rgba(244,63,94,0.3)]"
+                : "bg-dark-900 hover:bg-dark-800 text-rose-300 border-rose-500/20 hover:border-rose-500/40"
+            }`}
+          >
+            <span>🚨</span>
+            <span className="text-[10px]">Alert</span>
+          </button>
+          <button
+            onClick={() => applyVocalPreset("silent")}
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedVoicePreset === "silent"
+                ? "bg-dark-800 border-white/40 text-white font-bold"
+                : "bg-dark-900 hover:bg-dark-800 text-gray-400 border-white/5 hover:border-white/20"
+            }`}
+          >
+            <span>🔇</span>
+            <span className="text-[10px]">Silent</span>
+          </button>
         </div>
       </div>
     </div>

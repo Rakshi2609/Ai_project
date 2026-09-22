@@ -69,6 +69,11 @@ export default function FaceExpressionCapture({
   const detectionStateRef = useRef(detectionState);
   detectionStateRef.current = detectionState;
 
+  const [lockedPreset, setLockedPreset] = useState<string | null>(null);
+  const lockedPresetRef = useRef<string | null>(null);
+  const baselineContrastRef = useRef<number | null>(null);
+  const baselineMouthLumRef = useRef<number | null>(null);
+
   const lastAnalysisTimeRef = useRef<number>(0);
   const blinkHistoryRef = useRef<number[]>([]);
   const lastEyeLuminanceRef = useRef<number>(100);
@@ -268,7 +273,7 @@ export default function FaceExpressionCapture({
 
     if (preset === "smile") {
       telemetry = {
-        au04_brow_furrow: 0.06,
+        au04_brow_furrow: 0.05,
         au12_smile: 0.88,
         mouth_open: 0.22,
         blink_rate_bpm: 15,
@@ -277,26 +282,26 @@ export default function FaceExpressionCapture({
       label = "Smiling (Positive Valence)";
     } else if (preset === "stress") {
       telemetry = {
-        au04_brow_furrow: 0.86,
+        au04_brow_furrow: 0.88,
         au12_smile: 0.02,
-        mouth_open: 0.12,
+        mouth_open: 0.15,
         blink_rate_bpm: 34,
-        valence_entropy: 0.74,
+        valence_entropy: 0.76,
       };
       label = "Brow Furrow (High Cognitive Stress)";
     } else if (preset === "surprise") {
       telemetry = {
-        au04_brow_furrow: 0.38,
-        au12_smile: 0.15,
-        mouth_open: 0.78,
+        au04_brow_furrow: 0.42,
+        au12_smile: 0.12,
+        mouth_open: 0.82,
         blink_rate_bpm: 28,
-        valence_entropy: 0.58,
+        valence_entropy: 0.62,
       };
-      label = "Surprised (Jaw Drop)";
+      label = "Surprised (Jaw Drop / Alarm)";
     } else {
       telemetry = {
         au04_brow_furrow: 0.12,
-        au12_smile: 0.1,
+        au12_smile: 0.08,
         mouth_open: 0.05,
         blink_rate_bpm: 18,
         valence_entropy: 0.14,
@@ -304,6 +309,8 @@ export default function FaceExpressionCapture({
       label = "Neutral (Calm)";
     }
 
+    lockedPresetRef.current = preset;
+    setLockedPreset(preset);
     setExpressionName(label);
     const updated = {
       faceDetected: true,
@@ -317,6 +324,13 @@ export default function FaceExpressionCapture({
     if (onTelemetryChangeRef.current) {
       onTelemetryChangeRef.current(telemetry);
     }
+  };
+
+  const resumeLiveCameraTracking = () => {
+    lockedPresetRef.current = null;
+    setLockedPreset(null);
+    baselineContrastRef.current = null;
+    baselineMouthLumRef.current = null;
   };
 
   // Real-time Computer Vision Optical Flow Analysis & AR Reticles Loop (60 FPS)
@@ -450,53 +464,72 @@ export default function FaceExpressionCapture({
               Math.min(48, blinkHistoryRef.current.length * (60000 / Math.max(5000, now)))
             );
 
-            const avgBrowContrast = browSampleCount > 0 ? browContrastSum / browSampleCount : 5.0;
+            const rawBrowContrast = (browSampleCount > 0 ? browContrastSum / browSampleCount : 5.0) * ambientNorm;
             const avgMouthLum = mouthSampleCount > 0 ? mouthLumSum / mouthSampleCount : 80.0;
             const avgCheekLum = cheekSampleCount > 0 ? cheekLumSum / cheekSampleCount : 110.0;
 
-            const browFurrow = Math.min(1.0, Math.max(0.04, ((avgBrowContrast * ambientNorm) / 12.0) * 0.45));
-            const smileValence = Math.min(
-              1.0,
-              Math.max(0.04, ((avgCheekLum * ambientNorm) / 140.0) * 0.35 - browFurrow * 0.3 + 0.05)
-            );
-            const mouthOpen = Math.min(1.0, Math.max(0.02, Math.abs(avgMouthLum - 90) / 110.0));
+            // Running adaptive resting baseline
+            if (baselineContrastRef.current === null) {
+              baselineContrastRef.current = rawBrowContrast;
+            } else {
+              baselineContrastRef.current = baselineContrastRef.current * 0.97 + rawBrowContrast * 0.03;
+            }
+
+            if (baselineMouthLumRef.current === null) {
+              baselineMouthLumRef.current = avgMouthLum;
+            } else {
+              baselineMouthLumRef.current = baselineMouthLumRef.current * 0.97 + avgMouthLum * 0.03;
+            }
+
+            // High sensitivity differential cues relative to baseline resting face
+            const browDelta = (rawBrowContrast - baselineContrastRef.current) / Math.max(1.0, baselineContrastRef.current);
+            const mouthDelta = (baselineMouthLumRef.current - avgMouthLum) / Math.max(10.0, baselineMouthLumRef.current);
+            const cheekDelta = (avgCheekLum - avgMouthLum) / Math.max(10.0, avgMouthLum);
+
+            const browFurrow = Math.min(0.95, Math.max(0.06, 0.12 + browDelta * 1.5));
+            const mouthOpen = Math.min(0.95, Math.max(0.03, 0.05 + mouthDelta * 2.2));
+            const smileValence = Math.min(0.95, Math.max(0.04, 0.10 + cheekDelta * 0.4 - browFurrow * 0.2));
             const entropy = Math.min(
               1.0,
               Math.max(0.08, browFurrow * 0.5 + smileValence * 0.2 + 0.08)
             );
 
-            let expLabel = "Neutral (Calm)";
-            if (browFurrow > 0.4) {
-              expLabel = "Brow Furrow (Stressed / Alert)";
-            } else if (smileValence > 0.35) {
-              expLabel = "Smiling (Positive Valence)";
-            } else if (mouthOpen > 0.35) {
-              expLabel = "Mouth Open (Surprise)";
+            // ONLY apply optical flow classification and update if NOT locked into a manual preset
+            if (!lockedPresetRef.current) {
+              let expLabel = "Neutral (Calm)";
+              if (browFurrow > 0.32) {
+                expLabel = "Brow Furrow (Stressed / Alert)";
+              } else if (mouthOpen > 0.30) {
+                expLabel = "Mouth Open (Surprise / Alert)";
+              } else if (smileValence > 0.28) {
+                expLabel = "Smiling (Positive Affect)";
+              }
+
+              const newTelemetry: FacialTelemetry = {
+                au04_brow_furrow: parseFloat(browFurrow.toFixed(3)),
+                au12_smile: parseFloat(smileValence.toFixed(3)),
+                mouth_open: parseFloat(mouthOpen.toFixed(3)),
+                blink_rate_bpm: Math.round(calculatedBpm),
+                valence_entropy: parseFloat(entropy.toFixed(3)),
+              };
+
+              setExpressionName(expLabel);
+
+              const updatedState = {
+                faceDetected: true,
+                ...newTelemetry,
+                blink_rate: newTelemetry.blink_rate_bpm,
+                entropy: newTelemetry.valence_entropy,
+              };
+              detectionStateRef.current = updatedState;
+              setDetectionState(updatedState);
+
+              if (onTelemetryChangeRef.current) {
+                onTelemetryChangeRef.current(newTelemetry);
+              }
             }
 
-            const newTelemetry: FacialTelemetry = {
-              au04_brow_furrow: parseFloat(browFurrow.toFixed(3)),
-              au12_smile: parseFloat(smileValence.toFixed(3)),
-              mouth_open: parseFloat(mouthOpen.toFixed(3)),
-              blink_rate_bpm: Math.round(calculatedBpm),
-              valence_entropy: parseFloat(entropy.toFixed(3)),
-            };
-
-            setExpressionName(expLabel);
             setFrameTick((prev) => (prev + 1) % 100);
-
-            const updatedState = {
-              faceDetected: true,
-              ...newTelemetry,
-              blink_rate: newTelemetry.blink_rate_bpm,
-              entropy: newTelemetry.valence_entropy,
-            };
-            detectionStateRef.current = updatedState;
-            setDetectionState(updatedState);
-
-            if (onTelemetryChangeRef.current) {
-              onTelemetryChangeRef.current(newTelemetry);
-            }
           } catch (e) {
             console.warn("CV feature extraction error:", e);
           }
@@ -799,48 +832,118 @@ export default function FaceExpressionCapture({
       </div>
 
       {/* Quick Expression Reaction Preset Buttons for instant testing */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-[10px] font-mono text-gray-400">
-          <span>Quick Expression Test Chips:</span>
-          <span className="text-teal-400 flex items-center">
-            <span
-              className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                frameTick % 2 === 0 ? "bg-teal-400" : "bg-emerald-400"
-              }`}
-            />
-            Live Telemetry Active
-          </span>
-        </div>
+      <div className="space-y-2 pt-1">
+        {lockedPreset ? (
+          <div className="flex items-center justify-between p-2 rounded-xl bg-teal-500/15 border border-teal-500/30 text-xs font-mono">
+            <div className="flex items-center space-x-2 text-teal-300">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+              <span>Manual Inject: <strong className="text-white">{expressionName}</strong></span>
+            </div>
+            <button
+              onClick={resumeLiveCameraTracking}
+              className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-teal-500/30 hover:bg-teal-500/50 text-white border border-teal-400/40 transition flex items-center space-x-1 shadow-sm"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Resume Live Cam</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between text-[10px] font-mono text-gray-400">
+            <span>Quick Expression Presets (Locks &amp; Injects):</span>
+            <span className="text-emerald-400 flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-ping" />
+              Adaptive Camera Active
+            </span>
+          </div>
+        )}
 
         <div className="grid grid-cols-4 gap-1.5 text-xs font-mono">
           <button
             onClick={() => applyPresetExpression("neutral")}
-            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-gray-300 border border-white/5 hover:border-white/20 transition flex items-center justify-center space-x-1"
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedPreset === "neutral"
+                ? "bg-teal-500/30 border-teal-400 text-white shadow-[0_0_10px_rgba(45,212,191,0.3)] font-bold"
+                : "bg-dark-900 hover:bg-dark-800 text-gray-300 border-white/5 hover:border-white/20"
+            }`}
           >
             <span>😐</span>
             <span className="text-[10px]">Neutral</span>
           </button>
           <button
             onClick={() => applyPresetExpression("smile")}
-            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-teal-300 border border-teal-500/20 hover:border-teal-500/40 transition flex items-center justify-center space-x-1"
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedPreset === "smile"
+                ? "bg-teal-500/30 border-teal-400 text-white shadow-[0_0_10px_rgba(45,212,191,0.3)] font-bold"
+                : "bg-dark-900 hover:bg-dark-800 text-teal-300 border-teal-500/20 hover:border-teal-500/40"
+            }`}
           >
             <span>😊</span>
             <span className="text-[10px]">Smile</span>
           </button>
           <button
             onClick={() => applyPresetExpression("stress")}
-            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-rose-300 border border-rose-500/20 hover:border-rose-500/40 transition flex items-center justify-center space-x-1"
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedPreset === "stress"
+                ? "bg-rose-500/30 border-rose-400 text-white shadow-[0_0_10px_rgba(244,63,94,0.3)] font-bold"
+                : "bg-dark-900 hover:bg-dark-800 text-rose-300 border-rose-500/20 hover:border-rose-500/40"
+            }`}
           >
             <span>😠</span>
             <span className="text-[10px]">Frown</span>
           </button>
           <button
             onClick={() => applyPresetExpression("surprise")}
-            className="px-2 py-1.5 rounded-lg bg-dark-900 hover:bg-dark-800 text-amber-300 border border-amber-500/20 hover:border-amber-500/40 transition flex items-center justify-center space-x-1"
+            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+              lockedPreset === "surprise"
+                ? "bg-amber-500/30 border-amber-400 text-white shadow-[0_0_10px_rgba(245,158,11,0.3)] font-bold"
+                : "bg-dark-900 hover:bg-dark-800 text-amber-300 border-amber-500/20 hover:border-amber-500/40"
+            }`}
           >
             <span>😮</span>
             <span className="text-[10px]">Surprise</span>
           </button>
+        </div>
+
+        {/* Live Facial Biometrics Gauge Strip */}
+        <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
+          <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="text-gray-400">AU04 Brow</span>
+              <span className="text-rose-400 font-bold">{Math.round(detectionState.au04_brow_furrow * 100)}%</span>
+            </div>
+            <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
+              <div
+                className="bg-rose-500 h-full transition-all duration-150"
+                style={{ width: `${Math.min(100, Math.max(5, detectionState.au04_brow_furrow * 100))}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="text-gray-400">AU12 Smile</span>
+              <span className="text-teal-300 font-bold">{Math.round(detectionState.au12_smile * 100)}%</span>
+            </div>
+            <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
+              <div
+                className="bg-teal-400 h-full transition-all duration-150"
+                style={{ width: `${Math.min(100, Math.max(5, detectionState.au12_smile * 100))}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="text-gray-400">Mouth Open</span>
+              <span className="text-amber-400 font-bold">{Math.round(detectionState.mouth_open * 100)}%</span>
+            </div>
+            <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
+              <div
+                className="bg-amber-400 h-full transition-all duration-150"
+                style={{ width: `${Math.min(100, Math.max(5, detectionState.mouth_open * 100))}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

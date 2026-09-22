@@ -62,13 +62,32 @@ export default function MasterCockpitPage() {
         execution_speed_mps: robotState.speed_mps,
         error_type: robotState.error_type,
         joint_torque_anomaly: robotState.torque_anomaly,
-        facial_params: facialData,
-        vocal_params: vocalData,
+        facial_params: {
+          ...facialData,
+          brow_furrow: facialData.au04_brow_furrow,
+          fear_expression: Math.max(0, facialData.au04_brow_furrow * 0.85 + facialData.mouth_open * 0.45 - facialData.au12_smile * 0.4),
+          anger_expression: Math.max(0, facialData.au04_brow_furrow * 0.80 - facialData.au12_smile * 0.5),
+          eye_widen: Math.min(1.0, facialData.mouth_open * 0.7 + facialData.au04_brow_furrow * 0.3),
+          jaw_clench: Math.max(0, 0.05 + facialData.au04_brow_furrow * 0.5 - facialData.mouth_open * 0.2),
+          facial_entropy: facialData.valence_entropy,
+          gaze_drift_variance: 0.04,
+          dominant_emotion: facialData.au04_brow_furrow > 0.35 ? "Stressed (AU04)" : (facialData.au12_smile > 0.35 ? "Smiling (Positive)" : "Neutral")
+        },
+        vocal_params: {
+          ...vocalData,
+          pitch_f0_hz: vocalData.pitch_mean_hz,
+          f0_std_hz: Math.max(8.0, vocalData.acoustic_jitter_pct * 16.0),
+          jitter_percent: vocalData.acoustic_jitter_pct,
+          shimmer_percent: Math.max(1.0, Math.min(12.0, (vocalData.intensity_db - 30.0) / 4.5)),
+          pause_ratio: vocalData.pause_ratio,
+          ambient_noise_snr_db: Math.max(10.0, 45.0 - (vocalData.intensity_db / 3.0)),
+        },
         physio_params: {
-          bvp_pulse_rate_bpm: 72 + facialData.au04_brow_furrow * 25,
-          eda_skin_conductance_us: 2.1 + facialData.au04_brow_furrow * 4.0,
-          respiration_rate_bpm: 15,
+          heart_rate_bpm: Math.round(72 + facialData.au04_brow_furrow * 35 + (vocalData.intensity_db > 65 ? 14 : 0)),
+          hrv_rmssd_ms: Math.round(Math.max(18, 65 - facialData.au04_brow_furrow * 45)),
+          eda_microsiemens: parseFloat((2.0 + facialData.au04_brow_furrow * 6.0 + vocalData.acoustic_jitter_pct * 1.4).toFixed(2)),
           has_motion_artifact: false,
+          artifact_snr_db: 25.0,
         },
       };
 

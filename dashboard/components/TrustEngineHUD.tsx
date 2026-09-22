@@ -141,12 +141,12 @@ export default function TrustEngineHUD({ inference, loading = false }: TrustEngi
 
           <div className="flex items-baseline space-x-2 my-2">
             <span className="text-3xl font-black font-mono text-white tracking-tight">
-              {latencyMs.toFixed(1)} ms
+              {(pred?.decision_latency_ms ?? latencyMs).toFixed(1)} ms
             </span>
             <span className="text-xs text-emerald-400 font-mono font-bold">(&lt; 250ms target)</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-white/5">
-            <span>Confidence: <span className="text-teal-300 font-mono font-bold">94.2%</span></span>
+            <span>Confidence: <span className="text-teal-300 font-mono font-bold">{(((pred?.system_confidence ?? 0.88) * 100)).toFixed(1)}%</span></span>
             <span className="text-emerald-400 font-mono flex items-center">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" /> Edge Ready
             </span>
