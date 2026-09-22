@@ -143,28 +143,38 @@ export default function MasterCockpitPage() {
           </p>
         </div>
 
-        {/* Quick Scenario Preset Pills */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto py-1">
+        {/* Quick Scenario & Biometric Mode Pills */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto py-1 font-mono text-xs">
           <button
             onClick={() => {
               setRobotState({ mode: "correct", error_type: "nominal", speed_mps: 0.8, drift_m: 0.02, torque_anomaly: 0.04 });
-              setFacialData({ au04_brow_furrow: 0.08, blink_rate_bpm: 16, au12_smile: 0.25, mouth_open: 0.02, valence_entropy: 0.1 });
+              setFacialData({ au04_brow_furrow: 0.05, blink_rate_bpm: 16, au12_smile: 0.88, mouth_open: 0.10, valence_entropy: 0.10 });
             }}
-            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-dark-800 hover:bg-dark-750 text-gray-200 border border-white/10 transition flex items-center space-x-1.5 shadow-sm"
+            className="px-3 py-1.5 font-bold rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 transition flex items-center space-x-1.5 shadow-sm"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>Nominal</span>
+            <span>😊</span>
+            <span>Smile Mode</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setFacialData({ au04_brow_furrow: 0.88, blink_rate_bpm: 34, au12_smile: 0.02, mouth_open: 0.15, valence_entropy: 0.76 });
+            }}
+            className="px-3 py-1.5 font-bold rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center space-x-1.5 shadow-sm"
+          >
+            <span>😠</span>
+            <span>Stressed Mode</span>
           </button>
 
           <button
             onClick={() => {
               setRobotState({ mode: "wrong", error_type: "gripper_slip", speed_mps: 0.2, drift_m: 0.15, torque_anomaly: 0.25 });
-              setFacialData({ au04_brow_furrow: 0.85, blink_rate_bpm: 38, au12_smile: 0.0, mouth_open: 0.45, valence_entropy: 0.8 });
+              setFacialData({ au04_brow_furrow: 0.90, blink_rate_bpm: 38, au12_smile: 0.0, mouth_open: 0.45, valence_entropy: 0.82 });
             }}
-            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-dark-800 hover:bg-dark-750 text-gray-200 border border-white/10 transition flex items-center space-x-1.5 shadow-sm"
+            className="px-3 py-1.5 font-semibold rounded-xl bg-dark-800 hover:bg-dark-750 text-gray-300 border border-white/10 transition flex items-center space-x-1.5 shadow-sm"
           >
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-            <span>Slip Error</span>
+            <span>Cobot Slip</span>
           </button>
         </div>
       </div>

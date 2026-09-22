@@ -266,47 +266,29 @@ export default function FaceExpressionCapture({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart]);
 
-  // Quick Preset Expression Injector for instant testing & live updates
-  const applyPresetExpression = (preset: "neutral" | "smile" | "stress" | "surprise") => {
+  // Quick 2-Mode Preset Expression Injector (Smile vs Stressed)
+  const applyPresetExpression = (preset: "smile" | "stress") => {
     let telemetry: FacialTelemetry;
-    let label = "Neutral (Calm)";
+    let label = "Smile (Calm & Calibrated)";
 
     if (preset === "smile") {
       telemetry = {
         au04_brow_furrow: 0.05,
         au12_smile: 0.88,
-        mouth_open: 0.22,
-        blink_rate_bpm: 15,
-        valence_entropy: 0.12,
+        mouth_open: 0.12,
+        blink_rate_bpm: 16,
+        valence_entropy: 0.10,
       };
-      label = "Smiling (Positive Valence)";
-    } else if (preset === "stress") {
+      label = "Smile (Calm & Calibrated)";
+    } else {
       telemetry = {
         au04_brow_furrow: 0.88,
         au12_smile: 0.02,
-        mouth_open: 0.15,
+        mouth_open: 0.16,
         blink_rate_bpm: 34,
         valence_entropy: 0.76,
       };
-      label = "Brow Furrow (High Cognitive Stress)";
-    } else if (preset === "surprise") {
-      telemetry = {
-        au04_brow_furrow: 0.42,
-        au12_smile: 0.12,
-        mouth_open: 0.82,
-        blink_rate_bpm: 28,
-        valence_entropy: 0.62,
-      };
-      label = "Surprised (Jaw Drop / Alarm)";
-    } else {
-      telemetry = {
-        au04_brow_furrow: 0.12,
-        au12_smile: 0.08,
-        mouth_open: 0.05,
-        blink_rate_bpm: 18,
-        valence_entropy: 0.14,
-      };
-      label = "Neutral (Calm)";
+      label = "Stressed (Brow Furrow AU04)";
     }
 
     lockedPresetRef.current = preset;
@@ -496,21 +478,16 @@ export default function FaceExpressionCapture({
 
             // ONLY apply optical flow classification and update if NOT locked into a manual preset
             if (!lockedPresetRef.current) {
-              let expLabel = "Neutral (Calm)";
-              if (browFurrow > 0.32) {
-                expLabel = "Brow Furrow (Stressed / Alert)";
-              } else if (mouthOpen > 0.30) {
-                expLabel = "Mouth Open (Surprise / Alert)";
-              } else if (smileValence > 0.28) {
-                expLabel = "Smiling (Positive Affect)";
-              }
+              // Strictly 2 modes: Stressed (Brow Furrow AU04) vs Smile (Calm & Calibrated)
+              const isStressed = browFurrow > 0.28 || browDelta > 0.12;
+              const expLabel = isStressed ? "Stressed (Brow Furrow AU04)" : "Smile (Calm & Calibrated)";
 
               const newTelemetry: FacialTelemetry = {
-                au04_brow_furrow: parseFloat(browFurrow.toFixed(3)),
-                au12_smile: parseFloat(smileValence.toFixed(3)),
+                au04_brow_furrow: isStressed ? Math.max(0.65, parseFloat(browFurrow.toFixed(3))) : 0.06,
+                au12_smile: isStressed ? 0.04 : Math.max(0.68, parseFloat(smileValence.toFixed(3))),
                 mouth_open: parseFloat(mouthOpen.toFixed(3)),
                 blink_rate_bpm: Math.round(calculatedBpm),
-                valence_entropy: parseFloat(entropy.toFixed(3)),
+                valence_entropy: isStressed ? 0.74 : 0.12,
               };
 
               setExpressionName(expLabel);
@@ -857,90 +834,69 @@ export default function FaceExpressionCapture({
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-1.5 text-xs font-mono">
-          <button
-            onClick={() => applyPresetExpression("neutral")}
-            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
-              lockedPreset === "neutral"
-                ? "bg-teal-500/30 border-teal-400 text-white shadow-[0_0_10px_rgba(45,212,191,0.3)] font-bold"
-                : "bg-dark-900 hover:bg-dark-800 text-gray-300 border-white/5 hover:border-white/20"
-            }`}
-          >
-            <span>😐</span>
-            <span className="text-[10px]">Neutral</span>
-          </button>
+        {/* Dedicated 2-Mode Selectors: Smile vs Stressed */}
+        <div className="grid grid-cols-2 gap-2 text-xs font-mono">
           <button
             onClick={() => applyPresetExpression("smile")}
-            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+            className={`px-3 py-2 rounded-xl border transition flex items-center justify-center space-x-2 ${
               lockedPreset === "smile"
-                ? "bg-teal-500/30 border-teal-400 text-white shadow-[0_0_10px_rgba(45,212,191,0.3)] font-bold"
+                ? "bg-teal-500/30 border-teal-400 text-white shadow-[0_0_15px_rgba(45,212,191,0.35)] font-bold ring-1 ring-teal-400"
                 : "bg-dark-900 hover:bg-dark-800 text-teal-300 border-teal-500/20 hover:border-teal-500/40"
             }`}
           >
-            <span>😊</span>
-            <span className="text-[10px]">Smile</span>
+            <span className="text-base">😊</span>
+            <div className="text-left">
+              <span className="block text-[11px] font-bold">Smile Mode</span>
+              <span className="block text-[9px] text-teal-300/70 font-sans">Calm &amp; Calibrated</span>
+            </div>
           </button>
+
           <button
             onClick={() => applyPresetExpression("stress")}
-            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
+            className={`px-3 py-2 rounded-xl border transition flex items-center justify-center space-x-2 ${
               lockedPreset === "stress"
-                ? "bg-rose-500/30 border-rose-400 text-white shadow-[0_0_10px_rgba(244,63,94,0.3)] font-bold"
+                ? "bg-rose-500/30 border-rose-400 text-white shadow-[0_0_15px_rgba(244,63,94,0.35)] font-bold ring-1 ring-rose-400"
                 : "bg-dark-900 hover:bg-dark-800 text-rose-300 border-rose-500/20 hover:border-rose-500/40"
             }`}
           >
-            <span>😠</span>
-            <span className="text-[10px]">Frown</span>
-          </button>
-          <button
-            onClick={() => applyPresetExpression("surprise")}
-            className={`px-2 py-1.5 rounded-lg border transition flex items-center justify-center space-x-1 ${
-              lockedPreset === "surprise"
-                ? "bg-amber-500/30 border-amber-400 text-white shadow-[0_0_10px_rgba(245,158,11,0.3)] font-bold"
-                : "bg-dark-900 hover:bg-dark-800 text-amber-300 border-amber-500/20 hover:border-amber-500/40"
-            }`}
-          >
-            <span>😮</span>
-            <span className="text-[10px]">Surprise</span>
+            <span className="text-base">😠</span>
+            <div className="text-left">
+              <span className="block text-[11px] font-bold">Stressed Mode</span>
+              <span className="block text-[9px] text-rose-300/70 font-sans">Brow Furrow AU04</span>
+            </div>
           </button>
         </div>
 
-        {/* Live Facial Biometrics Gauge Strip */}
-        <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
-          <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
+        {/* Live Facial Biometrics Gauge Strip (2 Dual Modalities) */}
+        <div className="grid grid-cols-2 gap-2.5 text-xs font-mono pt-1">
+          <div className="bg-dark-900/90 p-2.5 rounded-xl border border-teal-500/20 space-y-1.5">
             <div className="flex justify-between items-center text-[10px]">
-              <span className="text-gray-400">AU04 Brow</span>
-              <span className="text-rose-400 font-bold">{Math.round(detectionState.au04_brow_furrow * 100)}%</span>
+              <span className="text-teal-300 font-semibold flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 mr-1.5 animate-pulse" />
+                AU12 Smile (Calm)
+              </span>
+              <span className="text-teal-300 font-bold text-xs">{Math.round(detectionState.au12_smile * 100)}%</span>
             </div>
-            <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
+            <div className="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-rose-500 h-full transition-all duration-150"
-                style={{ width: `${Math.min(100, Math.max(5, detectionState.au04_brow_furrow * 100))}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
-            <div className="flex justify-between items-center text-[10px]">
-              <span className="text-gray-400">AU12 Smile</span>
-              <span className="text-teal-300 font-bold">{Math.round(detectionState.au12_smile * 100)}%</span>
-            </div>
-            <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
-              <div
-                className="bg-teal-400 h-full transition-all duration-150"
+                className="bg-gradient-to-r from-teal-400 to-cyan-400 h-full transition-all duration-150 shadow-[0_0_8px_#2dd4bf]"
                 style={{ width: `${Math.min(100, Math.max(5, detectionState.au12_smile * 100))}%` }}
               />
             </div>
           </div>
 
-          <div className="bg-dark-900/90 p-2 rounded-xl border border-white/5 space-y-1">
+          <div className="bg-dark-900/90 p-2.5 rounded-xl border border-rose-500/20 space-y-1.5">
             <div className="flex justify-between items-center text-[10px]">
-              <span className="text-gray-400">Mouth Open</span>
-              <span className="text-amber-400 font-bold">{Math.round(detectionState.mouth_open * 100)}%</span>
+              <span className="text-rose-300 font-semibold flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mr-1.5 animate-pulse" />
+                AU04 Brow (Stressed)
+              </span>
+              <span className="text-rose-400 font-bold text-xs">{Math.round(detectionState.au04_brow_furrow * 100)}%</span>
             </div>
-            <div className="w-full bg-dark-800 rounded-full h-1 overflow-hidden">
+            <div className="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-amber-400 h-full transition-all duration-150"
-                style={{ width: `${Math.min(100, Math.max(5, detectionState.mouth_open * 100))}%` }}
+                className="bg-gradient-to-r from-rose-500 to-red-500 h-full transition-all duration-150 shadow-[0_0_8px_#f43f5e]"
+                style={{ width: `${Math.min(100, Math.max(5, detectionState.au04_brow_furrow * 100))}%` }}
               />
             </div>
           </div>
