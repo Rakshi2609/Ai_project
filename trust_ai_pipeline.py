@@ -776,7 +776,7 @@ class CobotTrustPipeline:
 TrustAIEngine = CobotTrustPipeline
 
 
-if __name__ == "__main__":
+def demo_system_run():
     print("=" * 80)
     print(" BCSE306L DA-1: MULTIMODAL MACHINE LEARNING FOR PREDICTING HUMAN TRUST IN COBOTS")
     print("=" * 80)
@@ -813,3 +813,8 @@ if __name__ == "__main__":
     print(f"Mitigation HUD:   {res2['module_5_mitigation_policy']['recommended_action']} (Speed: {res2['module_5_mitigation_policy']['execution_speed_factor']}x)")
     print(f"Action Message:   {res2['module_5_mitigation_policy']['hud_transparency_message']}")
     print("=" * 80)
+
+
+if __name__ == "__main__":
+    demo_system_run()
+
