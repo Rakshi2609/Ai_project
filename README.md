@@ -112,6 +112,49 @@ Current robotic control systems operate based on fixed safety envelopes, failing
 
 ---
 
+## 4.1 Multimodal Dataset Specification & Data Dictionary
+
+The system is trained and benchmarked on a comprehensive **Hybrid Multimodal Human-Robot Trust Corpus** fusing physiological, affective, acoustic, and robot kinematic streams across 10 subject cohorts performing precision collaborative assembly:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              HYBRID MULTIMODAL HUMAN-ROBOT TRUST CORPUS                          │
+├─────────────────────┬───────────────────┬───────────────┬────────────────────────────────────────┤
+│ Modality Domain     │ Source / Standard │ Sampling Rate │ Key Extracted Features                 │
+├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
+│ 1. Robot Kinematics │ Universal Robots  │ 50 Hz         │ • Tool Center Point (TCP) speed (m/s)  │
+│                     │ UR5 Manipulator   │               │ • 3D Euclidean Path Deviation (mm)     │
+│                     │ Telemetry Logs    │               │ • Error Categories (Drift, Grip, Stop) │
+│                     │                   │               │ • Joint Torque Anomaly Index           │
+├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
+│ 2. Facial Affect    │ Google MediaPipe  │ 30-60 FPS     │ • AU04 Brow Lowerer / Furrow (0.0-1.0) │
+│    (FACS Units)     │ 478-Point Mesh &  │               │ • AU12 Lip Corner Puller/Smile (0-1.0) │
+│                     │ Blendshapes       │               │ • AU26 Jaw Open & Blink Rate (BPM)     │
+│                     │                   │               │ • Affective Valence Entropy (0.0-1.0)  │
+├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
+│ 3. Vocal Prosody    │ Web Audio API     │ 44.1 kHz PCM  │ • Fundamental Pitch F0 (Hz)            │
+│    (Acoustics)      │ AnalyserNode      │ (1024-FFT)    │ • Pitch Jitter % (Micro-tremor)        │
+│                     │ (HRI Speech Bank) │               │ • Vocal RMS Intensity (dB)             │
+│                     │                   │               │ • Acoustic Spectral Tension Index      │
+├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
+│ 4. Physiological    │ TrustBase Corpus  │ 64 Hz (BVP)   │ • Blood Volume Pulse (BVP) Amplitude   │
+│    Biometrics       │ (Empatica E4 /    │ 4 Hz (EDA)    │ • Heart Rate (HR) & HRV RMSSD          │
+│                     │ Photoplethysmo.)  │               │ • Electrodermal Activity / Skin Cond.  │
+│                     │                   │               │ • Autonomic Sympathetic Arousal Index  │
+├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
+│ 5. Continuous Trust │ Human Operator    │ 1 Hz (Ground- │ • Scalar Trust Metric T ∈ [0.0, 1.0]   │
+│    Ground-Truth     │ Feedback Logs     │ Truth Tagged) │ • Calibrated Reference Confidence      │
+│                     │ (trust_ai_logs)   │               │ • Supervisor Dual-Verification Action  │
+└─────────────────────┴───────────────────┴───────────────┴────────────────────────────────────────┘
+```
+
+### Dataset Characteristics & Partitioning:
+* **Subject Cohort:** 10 diverse human operators evaluated across varied fatigue levels and error conditions.
+* **Validation Strategy:** Rigorous Leave-One-Subject-Out (LOSO) cross-validation (10 folds) to guarantee zero subject leakage and verify out-of-distribution generalization.
+* **Supervisor Calibration Log (`trust_ai_feedback_logs.jsonl`):** Continuous audit trail recording online operator feedback, allowing the PyTorch AdamW engine to adapt attention weights dynamically.
+
+---
+
 ## 5. Experimental Verification & Results
 
 ### 5.1 Baseline Comparison (Target: MSE < 0.08, Latency < 250ms)
@@ -151,62 +194,121 @@ Evaluated on the hybrid corpus combining TrustBase (BVP/EDA) and simulated UR5 c
 
 ---
 
-## 6. Project Structure
+## 6. Implementation Milestones & What We Have Done
+
+We transitioned the project from initial theoretical formulations into a fully operational, production-grade multimodal human-robot collaboration platform:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   PROJECT PROGRESS & MILESTONES                                  │
+├──────────────────────────┬──────────────┬────────────────────────────────────────────────────────┤
+│ Engineering Domain       │ Status       │ Key Deliverables & Technical Advancements             │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 1. 5-Module ML Pipeline  │ COMPLETE     │ • Temporal Attention-LSTM regressor (MSE = 0.0014)     │
+│    (PyTorch & Scikit)    │              │ • Asymmetric trust dynamics & noise-gating attention   │
+│                          │              │ • All 10 LOSO cross-validation folds pass MSE < 0.08   │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 2. Next.js 14 Cockpit    │ COMPLETE     │ • Modern glassmorphism UI with App Router architecture  │
+│    (Frontend Experience) │              │ • 4 routes: Master (/), Capture, Robot, and Analytics  │
+│                          │              │ • Real-time telemetry sync with FastAPI backend        │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 3. Deep Learning Vision  │ COMPLETE     │ • Integrated Google MediaPipe 478-Point FaceLandmarker │
+│    (Webcam Affect)       │              │ • Self-hosted local WASM & model weights (offline-ready│
+│                          │              │ • True FACS Action Units: AU04 (Furrow) & AU12 (Smile) │
+│                          │              │ • Cyberpunk AR HUD reticles overlaying mirrored stream │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 4. 2-Mode Affect Engine  │ COMPLETE     │ • Binary classification: Smile (Calm) vs Stressed      │
+│    (Robust Calibration)  │              │ • Eliminates ambiguous neutral drift & false alerts    │
+│                          │              │ • 1-Click manual injection chips for instant testing   │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 5. Web Audio Prosody     │ COMPLETE     │ • Real-time microphone audio processing via 1024-FFT   │
+│    (Vocal Prosody)       │              │ • Pitch F0 (Hz), vocal jitter %, intensity (dB)        │
+│                          │              │ • Noise SNR gating protects against room acoustics     │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 6. Three.js Cobot Twin   │ COMPLETE     │ • Interactive 3D UR5 robotic arm with 6-DOF kinematics │
+│    (Digital Twin)        │              │ • Real-time closed-loop speed adaptation (1.0x-0.2x)   │
+│                          │              │ • Visualized planned vs live trajectory path drift     │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 7. PyTorch Retrainer     │ COMPLETE     │ • Online AdamW optimization loop updating weights      │
+│    (Closed-Loop Active)  │              │ • Continuous supervisor ground-truth logging           │
+│                          │              │ • Live loss convergence plots & dynamic parameter sync │
+├──────────────────────────┼──────────────┼────────────────────────────────────────────────────────┤
+│ 8. DevOps & Verification │ COMPLETE     │ • Unified `./run.sh` script (start, stop, restart)     │
+│    (Single-Command Ops)  │              │ • Automated port conflict resolution & diagnostics     │
+│                          │              │ • Automated 7-route test verification (`test_routes.py`)│
+└──────────────────────────┴──────────────┴────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Project Structure
 
 ```text
 ai_project/
+├── dashboard/                       # Next.js 14 Enterprise Cockpit & Biometric Capture Studio
+│   ├── app/
+│   │   ├── layout.tsx               # Root layout with navigation bar & route links
+│   │   ├── page.tsx                 # Master Cockpit (Live Telemetry, Radar, Mitigation)
+│   │   ├── capture/page.tsx         # Dedicated Multimodal Biometric Capture Studio
+│   │   ├── robot/page.tsx           # 3D UR5 Cobot Digital Twin & Kinematics Control
+│   │   └── analytics/page.tsx       # Benchmarks, LOSO Validation & PyTorch Retraining
+│   ├── components/
+│   │   ├── FaceExpressionCapture.tsx# Google MediaPipe 478-Point FaceMesh & 2-Mode Affect
+│   │   ├── VoiceCapture.tsx         # Real Web Audio API FFT Pitch & Jitter Prosody
+│   │   ├── ThreeRobotScene.tsx      # Three.js 3D UR5 Manipulator & Path Drift Visualizer
+│   │   └── SpiderRadarChart.tsx     # SVG Cross-Modal Attention Spider Radar
+│   ├── public/
+│   │   ├── models/                  # Self-hosted MediaPipe face_landmarker.task model
+│   │   └── wasm/                    # Local WebAssembly binaries for offline inference
+│   └── package.json                 # Next.js dependencies (Three.js, MediaPipe, Lucide)
+├── tests/
+│   └── test_routes.py               # Automated 7-point health & route verification suite
 ├── docs/
-│   └── DA1AI_HOOO GYAAAAAAAAAA.docx # Formal DA-1 course submission document
-├── public/
-│   ├── index.html                   # 3D UR5 Cobot Cockpit, Radar, Baselines & Retraining Dashboard
-│   └── fonts/                       # Local assets
-├── trust_ai_pipeline.py             # 5-Module Multimodal Closed-Loop Pipeline
+│   └── DA1AI_HOOO GYAAAAAAAAAA.docx # Formal course submission report
+├── trust_ai_pipeline.py             # 5-Module Multimodal Closed-Loop Core Engine
 ├── evaluation.py                    # Baselines, LOSO Cross-Validation & Ablation Engine
-├── retrainer.py                     # PyTorch AdamW Neural Calibration & Retraining Module
-├── server.py                        # FastAPI Backend & Simulation REST API Server
+├── retrainer.py                     # PyTorch AdamW Neural Calibration & Retraining Studio
+├── server.py                        # FastAPI Backend & Multimodal Inference REST Server
+├── run.sh                           # 1-Command Unified Runner (Start, Stop, Restart, Status)
 ├── trust_ai_model_weights.json      # Calibrated attention weights and decision boundaries
 ├── trust_ai_feedback_logs.jsonl     # Supervisor ground-truth calibration dataset
-└── README.md                        # Documentation & Project Report
+└── README.md                        # Project Documentation, Benchmarks & Specifications
 ```
 
 ---
 
-## 7. Quickstart & Execution
+## 8. Quickstart & Execution
 
-### Step 1: Install Dependencies
+### 1-Command Automatic Launch (Recommended)
+You can launch both the FastAPI backend and Next.js frontend cockpit with a single command:
+
 ```bash
-pip install torch numpy scipy scikit-learn fastapi uvicorn
+./run.sh
 ```
 
-### Step 2: Test 5-Module Pipeline Inference
+To manage the background processes:
 ```bash
-python3 trust_ai_pipeline.py
+./run.sh status    # Check PID and port health
+./run.sh restart   # Hot restart all services
+./run.sh stop      # Clean shutdown
 ```
 
-### Step 3: Run Baseline Comparison & Ablation Studies
+### Automated Health Verification
+Verify all 7 frontend routes and backend REST endpoints:
 ```bash
-python3 evaluation.py
+python3 tests/test_routes.py
 ```
 
-### Step 4: Run PyTorch Neural Retraining
-```bash
-python3 retrainer.py
-```
-
-### Step 5: Launch 3D Interactive Cockpit & Dashboard
-```bash
-python3 server.py
-```
-Open **`http://localhost:8000`** in your browser to interact with:
-1. **3D UR5 Cobot Workspace:** Orbit, pan, zoom, inspect planned vs live trajectories, and simulate errors.
-2. **Live Multimodal Telemetry:** Robot speed/drift, facial AU04 brow furrow, vocal jitter, and pulsating BVP waveform.
-3. **Cross-Modal Attention Spider Radar:** Live visualization of noise downweighting.
-4. **Baseline Benchmarks & LOSO Validation:** Live interactive verification tables.
-5. **PyTorch Retraining Studio:** Real-time AdamW loss convergence and supervisor ground-truth logging.
+### Access Cockpit Routes
+* **Unified Master Cockpit:** `http://localhost:3000/`
+* **Biometric Capture Studio:** `http://localhost:3000/capture`
+* **3D Cobot Digital Twin:** `http://localhost:3000/robot`
+* **Analytics & Retraining:** `http://localhost:3000/analytics`
+* **FastAPI Backend Swagger Docs:** `http://localhost:8000/docs`
 
 ---
 
-## 8. Authors & Declaration
+## 9. Authors & Declaration
 This project is developed for **BCSE306L - Artificial Intelligence (DA-1)** under the guidance of **Dr. Vijayprabhakaran** at **Vellore Institute of Technology, Chennai**.
 * **Ayushi Singh** (`24BRS1369`): Literature survey, problem identification, domain motivation, and document drafting.
 * **Rakshith Ganjimut** (`24BRS1301`): System architecture design, experimental setup, feasibility analysis, and code repository implementation.
