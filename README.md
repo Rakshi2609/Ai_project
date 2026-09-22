@@ -7,6 +7,8 @@
 - **Rakshith Ganjimut** (Reg. No: `24BRS1301`) — *Effort: 50%*  
 **Department:** Department of Computer Science and Engineering  
 **Institution:** Vellore Institute of Technology, Chennai  
+**Branch:** [`feat/pretrained-multimodal-training`](https://github.com/Rakshi2609/Ai_project/tree/feat/pretrained-multimodal-training)  
+**Detailed Training & Accuracy Report:** See [**`MULTIMODAL_TRAINING_REPORT.md`**](file:///home/appu/ai_project/MULTIMODAL_TRAINING_REPORT.md) for full epoch-by-epoch loss curves, dataset links, pre-trained model accuracies, and 10-fold LOSO cross-validation tables.
 
 ---
 
