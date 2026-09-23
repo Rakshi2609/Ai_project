@@ -161,7 +161,7 @@ def run_pipeline():
     face_model = train_pretrained_face_model(str(face_data_path), epochs=20, lr=0.003)
     
     # Step 3: Train Pretrained Vocal Prosody Network
-    voice_model = train_pretrained_voice_model(str(voice_data_path), epochs=20, lr=0.003)
+    voice_model = train_pretrained_voice_model(str(voice_data_path), epochs=50, lr=0.001)
     
     # Step 4: Robot Kinematics Encoder
     robot_encoder = RobotBehaviorEncoder()

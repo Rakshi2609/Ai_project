@@ -12,9 +12,9 @@
   "under_trust_threshold": 0.35,
   "target_trust_min": 0.45,
   "target_trust_max": 0.78,
-  "calibrated_mse": 0.00753,
-  "loso_mean_mse": 0.0083,
+  "calibrated_mse": 0.0078,
+  "loso_mean_mse": 0.00846,
   "loso_mean_r2": 0.9,
   "model_version": "v3.1-pretrained-deep-fusion",
-  "last_calibrated_at": "2026-09-22T19:23:35Z"
+  "last_calibrated_at": "2026-09-23T02:38:09Z"
 }

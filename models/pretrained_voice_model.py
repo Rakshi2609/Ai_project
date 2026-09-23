@@ -116,68 +116,102 @@ class VoiceDataset(Dataset):
     def __getitem__(self, idx):
         return self.x[idx], self.targets[idx], self.labels[idx]
 
-def train_pretrained_voice_model(data_path: str, epochs: int = 25, batch_size: int = 32, lr: float = 0.002):
+def train_pretrained_voice_model(data_path: str, epochs: int = 50, batch_size: int = 16, lr: float = 0.001):
+    """
+    Train VoiceProsodyNet on RAVDESS prosody features.
+
+    Improvements over naive training:
+    1. Class-weighted CrossEntropy  — handles calm=480 vs surprised=192 imbalance
+    2. Gaussian noise augmentation  — regularises small 1,440-sample dataset
+    3. Cosine annealing LR          — smooth convergence
+    4. Larger epochs (50) + smaller batch (16) — more gradient updates per epoch
+    """
     print("=" * 65)
     print(" TRAINING PRE-TRAINED VOCAL PROSODY & SPEECH EMOTION MODEL")
     print("=" * 65)
     
     dataset = VoiceDataset(data_path)
     train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
+    val_size   = len(dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(dataset, [train_size, val_size])
-    
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
-    
-    model = VoiceProsodyNet()
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True,  drop_last=True)
+    val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False)
+
+    # ── Class weights: sqrt(inverse frequency) — gentler than full inverse  ──
+    # Full inverse freq made model over-focus on 192-sample classes → accuracy drop
+    # sqrt smooths the imbalance: calm(0.75→0.87), surprised(1.875→1.37)
+    all_labels = dataset.labels.numpy()
+    from collections import Counter
+    import math
+    counts = Counter(all_labels.tolist())
+    n_total = len(all_labels)
+    n_classes = 4
+    weights = torch.tensor(
+        [math.sqrt(n_total / (n_classes * max(counts.get(c, 1), 1))) for c in range(n_classes)],
+        dtype=torch.float32
+    )
+
+    model     = VoiceProsodyNet()
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
+
     criterion_mse = nn.MSELoss()
-    criterion_ce = nn.CrossEntropyLoss()
-    
-    best_val_loss = float("inf")
-    
+    criterion_ce  = nn.CrossEntropyLoss(weight=weights)   # ← class-weighted
+
+    best_val_acc = 0.0
+
     for epoch in range(1, epochs + 1):
         model.train()
         total_loss = 0.0
-        
+
         for batch_x, batch_tgt, batch_y in train_loader:
             optimizer.zero_grad()
-            _, pred_tgt, pred_logits = model(batch_x)
+
+            # Gaussian noise augmentation — improves generalisation on small dataset
+            noise = torch.randn_like(batch_x) * 0.02
+            batch_x_aug = batch_x + noise
+
+            _, pred_tgt, pred_logits = model(batch_x_aug)
             loss_regr = criterion_mse(pred_tgt, batch_tgt)
-            loss_cls = criterion_ce(pred_logits, batch_y)
-            loss = 0.5 * loss_regr + 0.5 * loss_cls
+            loss_cls  = criterion_ce(pred_logits, batch_y)
+            loss = 0.4 * loss_regr + 0.6 * loss_cls   # weight CE higher
             loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             total_loss += loss.item()
-            
+
+        scheduler.step()
+
         # Validation
         model.eval()
-        val_loss = 0.0
-        correct = 0
-        total = 0
+        val_loss, correct, total = 0.0, 0, 0
         with torch.no_grad():
             for batch_x, batch_tgt, batch_y in val_loader:
                 _, pred_tgt, pred_logits = model(batch_x)
                 loss_regr = criterion_mse(pred_tgt, batch_tgt)
-                loss_cls = criterion_ce(pred_logits, batch_y)
-                val_loss += (0.5 * loss_regr + 0.5 * loss_cls).item()
-                preds = torch.argmax(pred_logits, dim=1)
-                correct += (preds == batch_y).sum().item()
-                total += batch_y.size(0)
-                
+                loss_cls  = criterion_ce(pred_logits, batch_y)
+                val_loss += (0.4 * loss_regr + 0.6 * loss_cls).item()
+                correct  += (torch.argmax(pred_logits, dim=1) == batch_y).sum().item()
+                total    += batch_y.size(0)
+
         avg_train_loss = total_loss / len(train_loader)
-        avg_val_loss = val_loss / len(val_loader)
-        accuracy = (correct / total) * 100.0
-        
+        avg_val_loss   = val_loss   / len(val_loader)
+        accuracy       = (correct / total) * 100.0
+
         if epoch % 5 == 0 or epoch == epochs:
-            print(f"Epoch [{epoch:02d}/{epochs:02d}] Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Val Acc: {accuracy:.1f}%")
-            
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
+            print(f"Epoch [{epoch:02d}/{epochs:02d}] Train Loss: {avg_train_loss:.4f} | "
+                  f"Val Loss: {avg_val_loss:.4f} | Val Acc: {accuracy:.1f}%")
+
+        # Save best model by validation accuracy (not loss — avoids overfit saves)
+        if accuracy > best_val_acc:
+            best_val_acc = accuracy
             torch.save(model.state_dict(), MODEL_SAVE_PATH)
-            
-    print(f"[Pretrained Voice Model] Best weights saved -> {MODEL_SAVE_PATH}")
+
+    print(f"[Pretrained Voice Model] Best Val Acc: {best_val_acc:.1f}% | "
+          f"Saved -> {MODEL_SAVE_PATH}")
     return model
+
 
 if __name__ == "__main__":
     json_data = Path(__file__).resolve().parent.parent / "data" / "voice_emotion_dataset" / "speech_prosody_samples.json"

@@ -7,8 +7,19 @@
 - **Rakshith Ganjimut** (Reg. No: `24BRS1301`) — *Effort: 50%*  
 **Department:** Department of Computer Science and Engineering  
 **Institution:** Vellore Institute of Technology, Chennai  
-**Branch:** [`feat/pretrained-multimodal-training`](https://github.com/Rakshi2609/Ai_project/tree/feat/pretrained-multimodal-training)  
-**Detailed Training & Accuracy Report:** See [**`MULTIMODAL_TRAINING_REPORT.md`**](file:///home/appu/ai_project/MULTIMODAL_TRAINING_REPORT.md) for full epoch-by-epoch loss curves, dataset links, pre-trained model accuracies, and 10-fold LOSO cross-validation tables.
+**Branch:** [`feat/real-dataset-pipeline`](https://github.com/Rakshi2609/Ai_project/tree/feat/real-dataset-pipeline)  
+**Detailed Training & Accuracy Report:** See [**`MULTIMODAL_TRAINING_REPORT.md`**](./MULTIMODAL_TRAINING_REPORT.md) for full epoch-by-epoch loss curves, real dataset links, pre-trained model accuracies, and 10-fold LOSO cross-validation tables.
+
+### 🗂️ Real Datasets Used (All Publicly Downloadable)
+
+| # | Dataset | Source | Direct Link | Size |
+|---|---|---|---|---|
+| 1 | **FER-2013** Facial Emotions | Hugging Face (`Jeneral/fer2013`) | [Download Parquet (53 MB)](https://huggingface.co/datasets/Jeneral/fer2013) | 35,887 images |
+| 2 | **AffectNet** val split | Hugging Face (`Mauregato/affectnet_short`) | [Download Parquet (108 MB)](https://huggingface.co/datasets/Mauregato/affectnet_short) | 5,809 images |
+| 3 | **RAVDESS** Emotional Speech | Zenodo (record 1188976) | [Download ZIP (208 MB)](https://zenodo.org/records/1188976) | 1,440 WAV files |
+| 4 | **UR5 Kinematics** | Universal Robots ROS Driver | [GitHub Repo](https://github.com/UniversalRobots/Universal_Robots_ROS_Driver) | Simulated trajectories |
+
+> **To download and retrain:** `python3 data/real_dataset_pipeline.py && python3 train_multimodal_pipeline.py`
 
 ---
 
@@ -116,7 +127,18 @@ Current robotic control systems operate based on fixed safety envelopes, failing
 
 ## 4.1 Multimodal Dataset Specification & Data Dictionary
 
-The system is trained and benchmarked on a comprehensive **Hybrid Multimodal Human-Robot Trust Corpus** fusing physiological, affective, acoustic, and robot kinematic streams across 10 subject cohorts performing precision collaborative assembly:
+The system is trained on **real open-source datasets** downloaded from Hugging Face and Zenodo. All links below are live and publicly accessible without authentication.
+
+| Domain | Dataset | Download Link | Size | Samples | Features |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Facial Affect** | FER-2013 (`Jeneral/fer2013`) | [huggingface.co/datasets/Jeneral/fer2013](https://huggingface.co/datasets/Jeneral/fer2013) | 53 MB | 35,887 images | AU04, AU12, AU26, blink, valence, entropy |
+| **Facial Affect** | AffectNet val (`Mauregato/affectnet_short`) | [huggingface.co/datasets/Mauregato/affectnet_short](https://huggingface.co/datasets/Mauregato/affectnet_short) | 108 MB | 5,809 images | 8-class → mapped to 4 moods |
+| **Vocal Prosody** | RAVDESS Audio Speech (Zenodo #1188976) | [zenodo.org/records/1188976](https://zenodo.org/records/1188976) | 208 MB | 1,440 WAV files | F0, RMS, ZCR, spectral centroid, HNR |
+| **Robot Kinematics** | UR5 ROS Driver telemetry | [github.com/UniversalRobots/Universal_Robots_ROS_Driver](https://github.com/UniversalRobots/Universal_Robots_ROS_Driver) | Simulated | 200 trajectories | TCP speed, 3D drift, torque anomaly |
+| **Trust Corpus** | Synchronized multimodal corpus | — | — | 1,500 trials (10 subjects) | BVP, HR, HRV, EDA, ground-truth T∈[0,1] |
+
+**Facial emotion classes (4):** `smile_calm` (9,797) · `stressed` (12,899) · `surprised` (7,086) · `frustrated` (11,914)  
+**Voice emotion classes (4):** `calm` (480) · `tense` (576) · `surprised` (192) · `subdued` (192)
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -129,19 +151,19 @@ The system is trained and benchmarked on a comprehensive **Hybrid Multimodal Hum
 │                     │ Telemetry Logs    │               │ • Error Categories (Drift, Grip, Stop) │
 │                     │                   │               │ • Joint Torque Anomaly Index           │
 ├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
-│ 2. Facial Affect    │ Google MediaPipe  │ 30-60 FPS     │ • AU04 Brow Lowerer / Furrow (0.0-1.0) │
-│    (FACS Units)     │ 478-Point Mesh &  │               │ • AU12 Lip Corner Puller/Smile (0-1.0) │
-│                     │ Blendshapes       │               │ • AU26 Jaw Open & Blink Rate (BPM)     │
+│ 2. Facial Affect    │ FER-2013 + AffNet │ 30-60 FPS     │ • AU04 Brow Lowerer / Furrow (0.0-1.0) │
+│    (FACS Units)     │ 41,696 real imgs  │               │ • AU12 Lip Corner Puller/Smile (0-1.0) │
+│                     │ HF parquet files  │               │ • AU26 Jaw Open & Blink Rate (BPM)     │
 │                     │                   │               │ • Affective Valence Entropy (0.0-1.0)  │
 ├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
-│ 3. Vocal Prosody    │ Web Audio API     │ 44.1 kHz PCM  │ • Fundamental Pitch F0 (Hz)            │
-│    (Acoustics)      │ AnalyserNode      │ (1024-FFT)    │ • Pitch Jitter % (Micro-tremor)        │
-│                     │ (HRI Speech Bank) │               │ • Vocal RMS Intensity (dB)             │
-│                     │                   │               │ • Acoustic Spectral Tension Index      │
+│ 3. Vocal Prosody    │ RAVDESS (Zenodo   │ 44.1 kHz PCM  │ • Fundamental Pitch F0 (Hz)            │
+│    (Acoustics)      │ rec. 1188976)     │ 1,440 WAVs    │ • Pitch Jitter % (Micro-tremor)        │
+│                     │ 24 actors,        │               │ • RMS Energy / Intensity               │
+│                     │ 8 emotions        │               │ • Spectral Centroid & HNR              │
 ├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
 │ 4. Physiological    │ TrustBase Corpus  │ 64 Hz (BVP)   │ • Blood Volume Pulse (BVP) Amplitude   │
-│    Biometrics       │ (Empatica E4 /    │ 4 Hz (EDA)    │ • Heart Rate (HR) & HRV RMSSD          │
-│                     │ Photoplethysmo.)  │               │ • Electrodermal Activity / Skin Cond.  │
+│    Biometrics       │ (Empatica E4)     │ 4 Hz (EDA)    │ • Heart Rate (HR) & HRV RMSSD          │
+│                     │                   │               │ • Electrodermal Activity / Skin Cond.  │
 │                     │                   │               │ • Autonomic Sympathetic Arousal Index  │
 ├─────────────────────┼───────────────────┼───────────────┼────────────────────────────────────────┤
 │ 5. Continuous Trust │ Human Operator    │ 1 Hz (Ground- │ • Scalar Trust Metric T ∈ [0.0, 1.0]   │
@@ -154,6 +176,7 @@ The system is trained and benchmarked on a comprehensive **Hybrid Multimodal Hum
 * **Subject Cohort:** 10 diverse human operators evaluated across varied fatigue levels and error conditions.
 * **Validation Strategy:** Rigorous Leave-One-Subject-Out (LOSO) cross-validation (10 folds) to guarantee zero subject leakage and verify out-of-distribution generalization.
 * **Supervisor Calibration Log (`trust_ai_feedback_logs.jsonl`):** Continuous audit trail recording online operator feedback, allowing the PyTorch AdamW engine to adapt attention weights dynamically.
+
 
 ---
 
