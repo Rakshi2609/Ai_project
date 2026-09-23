@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pt
+*.h5
 .venv
 env/
 venv/
