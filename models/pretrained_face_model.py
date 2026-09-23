@@ -24,21 +24,22 @@ class FaceAffectNet(nn.Module):
     Deep Facial Affect & Action Unit Feature Extractor.
     Encodes 6-dimensional facial geometric & blendshape cues into
     a 64-dimensional latent embedding z_face for multimodal fusion.
+    Uses LayerNorm for seamless single-sample and mini-batch inference.
     """
     def __init__(self, input_dim: int = 6, embedding_dim: int = 64, num_classes: int = 4):
         super().__init__()
         
-        # Non-linear feature representation encoder
+        # Non-linear feature representation encoder with LayerNorm for stability
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 128),
-            nn.BatchNorm1d(128),
+            nn.LayerNorm(128),
             nn.LeakyReLU(0.1),
-            nn.Dropout(0.2),
+            nn.Dropout(0.1),
             nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
+            nn.LayerNorm(128),
             nn.LeakyReLU(0.1),
             nn.Linear(128, embedding_dim),
-            nn.BatchNorm1d(embedding_dim),
+            nn.LayerNorm(embedding_dim),
             nn.Tanh() # Normalized latent embedding [-1, 1]
         )
         
@@ -59,10 +60,17 @@ class FaceAffectNet(nn.Module):
         )
 
     def forward(self, x):
-        # x: [batch_size, input_dim]
+        # Allow 1D input tensor [input_dim] by auto-unsqueezing
+        is_unbatched = x.dim() == 1
+        if is_unbatched:
+            x = x.unsqueeze(0)
+            
         z_face = self.encoder(x) # [batch_size, 64]
         aus = self.au_head(z_face) # [batch_size, 2] -> [AU04, AU12]
         logits = self.classifier_head(z_face) # [batch_size, num_classes]
+        
+        if is_unbatched:
+            return z_face.squeeze(0), aus.squeeze(0), logits.squeeze(0)
         return z_face, aus, logits
 
 class FaceDataset(Dataset):
